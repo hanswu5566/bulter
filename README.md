@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI House Rent - 智慧租屋管家平台
 
-## Getting Started
+AI House Rent 是一個利用 Gemini AI 驅動的「智慧租屋管家」平台。解決租屋市場中「資訊隱瞞」、「信任成本高」與「看房效率低下」的核心痛點。
 
-First, run the development server:
+## 核心功能
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1.  **AI 對話面試 (Butler Interview)**: 透過首頁與 AI 管家對話，自動採集租屋意圖並標籤化，實現智慧匹配。
+2.  **零摩擦遷移 (591 Migration)**: 貼上 591 網址或上傳 App 截圖，Gemini 自動 OCR 並結構化房源資料。
+3.  **AI 實地看房清單 (On-site Checklist)**: 看房時由管家引導檢查水壓、隔音等細節，並透過 Gemini 視覺分析圖片瑕疵。
+4.  **智慧匹配分數 (Match Score)**: 根據您的生活習慣與房源真實數據，由 AI 計算最適合您的房源。
+5.  **信任事實回流 (Trust Loop)**: 房客實勘後的回報數據會更新至房源特徵，建立透明的租屋信任體系。
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 技術棧
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Frontend**: Next.js 14+ (App Router), React 18+
+- **Styling**: Tailwind CSS, Material 3 Design Guidelines
+- **AI Engine**: Gemini 1.5 Flash API
+- **ORM**: Prisma with PostgreSQL
+- **Auth**: NextAuth.js v5 (Beta)
+- **Deployment**: Google Cloud Run, Cloud SQL, Cloud Storage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 快速啟動
 
-## Learn More
+1.  **安裝依賴**:
+    ```bash
+    bun install
+    ```
 
-To learn more about Next.js, take a look at the following resources:
+2.  **環境變數**:
+    複製 `.env.example` 並重新命名為 `.env`，填入您的 API Key 與資料庫連線資訊。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3.  **資料庫初始化**:
+    ```bash
+    bun prisma generate
+    # 如果有資料庫連線，可以執行 migrate
+    # bun prisma migrate dev
+    ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+4.  **啟動開發伺服器**:
+    ```bash
+    bun dev
+    ```
 
-## Deploy on Vercel
+## 視覺設計
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **背景色**: 奶油白 (`#FFFDD0`)
+- **主色**: 陶土紅 (`#D2691E`)
+- **文字色**: 深炭灰 (`#333333`)
+- **組件**: 遵循 Material 3 的 8dp 網格與 16dp 圓角規範。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+*Powered by Gemini AI*
+# bulter
