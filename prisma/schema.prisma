@@ -1,0 +1,179 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  TENANT
+  LANDLORD
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          UserRole  @default(TENANT)
+  
+  // 核心畫像數據 (Spec 01)
+  baseProfile   Json?     // 基礎資料: { "phone": string, "occupation": string, "language": string }
+  aiTags        Json?     // Butler 提取的生活標籤: { "quietness": 5, "laundry": "daily", "pets": false }
+  trustSummary  String?   @db.Text // AI 生成的信用推薦語
+  
+  accounts      Account[]
+  sessions      Session[]
+  listings      Listing[] @relation("LandlordListings")
+  reports       InspectionReport[]
+  messages      ChatMessage[]
+  appointments  Appointment[]
+  chatSessions  ChatSession[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Listing {
+  id            String    @id @default(cuid())
+  title         String
+  description   String?   @db.Text
+  address       String
+  price         Int
+  currency      String    @default("TWD") // TWD, JPY
+  images        String[]  // Array of GCS paths
+  
+  // 市場與設施標籤 (Spec 02)
+  marketTags    Json?     // TW: { rent_subsidy: bool, ... }, JP: { reikin: int, ... }
+  features      Json?     // 設施屬性: { elevator: bool, balcony: bool, appliances: string[] }
+  
+  // 遷移與 AI 分析
+  sourceUrl     String?   @unique
+  rawScrapedData Json?    
+  butlerInsight Json?     // AI 生成的亮點、風險與 Match Score 參考
+  
+  landlordId    String
+  landlord      User      @relation("LandlordListings", fields: [landlordId], references: [id])
+  
+  reports       InspectionReport[]
+  appointments  Appointment[]
+  chatSessions  ChatSession[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum BookingStatus {
+  REQUESTED
+  CONFIRMED
+  REJECTED
+  VISITED
+  CANCELLED
+}
+
+model Appointment {
+  id          String        @id @default(cuid())
+  tenantId    String
+  landlordId  String
+  listingId   String
+  scheduledAt DateTime      // 預約的時段
+  status      BookingStatus @default(REQUESTED)
+  
+  tenant      User          @relation(fields: [tenantId], references: [id])
+  listing     Listing       @relation(fields: [listingId], references: [id])
+  report      InspectionReport?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model InspectionReport {
+  id            String      @id @default(cuid())
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  
+  listingId     String
+  listing       Listing     @relation(fields: [listingId], references: [id])
+  
+  tenantId      String
+  tenant        User        @relation(fields: [tenantId], references: [id])
+  
+  checklistData Json?       // 結構化事實紀錄
+  photos        String[]    // 異常存證照片路徑
+  aiSummary     String?     @db.Text // Gemini 生成的實勘總結
+  digitalHash   String?     // 防偽雜湊值
+  
+  status        String      @default("IN_PROGRESS")
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model ChatSession {
+  id          String        @id @default(cuid())
+  listingId   String
+  listing     Listing       @relation(fields: [listingId], references: [id])
+  users       User[]
+  messages    ChatMessage[]
+  createdAt   DateTime      @default(now())
+}
+
+model ChatMessage {
+  id                String      @id @default(cuid())
+  sessionId         String
+  session           ChatSession @relation(fields: [sessionId], references: [id])
+  senderId          String
+  sender            User        @relation(fields: [senderId], references: [id])
+  content           String      @db.Text
+  translatedContent Json?       // { "en": "...", "ja": "..." }
+  createdAt         DateTime    @default(now())
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model IoTDevice {
+  id            String   @id @default(cuid())
+  listingId     String
+  type          String   // "ELECTRIC_METER", "MOTION_SENSOR"
+  lastHeartbeat DateTime
+  status        String   // "NORMAL", "ALERT"
+}

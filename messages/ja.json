@@ -1,0 +1,82 @@
+{
+  "Navbar": {
+    "brand_name": "Butler.",
+    "brand_subtitle": "AI賃貸バトラー",
+    "title": "AI House Rent",
+    "explore": "探す",
+    "import": "インポート",
+    "reports": "レポート",
+    "switch_landlord": "大家に切替",
+    "switch_tenant": "借主に切替",
+    "login": "ログイン",
+    "profile": "設定",
+    "logout": "ログアウト",
+    "my_listings": "マイ物件"
+  },
+  "HomePage": {
+    "badge": "AI駆動のスマート賃貸革命",
+    "hero_title_1": "あなたの賃貸プロセスを",
+    "hero_title_2": "より",
+    "hero_title_3": "エレガント",
+    "hero_title_4": "で",
+    "hero_title_5": "透明に",
+    "hero_description": "Butler.はGemini AIを活用し、あなたの「バーチャル執事」として機能します。正確なマッチングから內見ガイドまで、トラブルのない住まい探しを保証します。",
+    "start_discovery_tenant": "居住体験の探索を開始",
+    "start_discovery_landlord": "理想の入居者像を定義",
+    "browse_listings": "物件を閲覧する",
+    "feature_1_title": "スムーズな移行",
+    "feature_1_desc": "URLを貼り付けるだけで、AIが自動的に物件データを抽出・構造化します。",
+    "feature_2_title": "AI内見ガイド",
+    "feature_2_desc": "執事が内見に同行し、水圧や防音などの隠れた詳細のチェックを案内します。",
+    "feature_3_title": "信頼のマッチング",
+    "feature_3_desc": "データ駆動型のフィードバックループにより、透明性の高い賃貸信頼システムを構築します。",
+    "initial_interview_msg": "こんにちは！私はあなたのAI執事です。探し始める前に、理想の予算やエリアを教えていただけますか？"
+  },
+  "AIButler": {
+    "name": "Butler",
+    "tagline": "Gemini 3 Flash Powered",
+    "fab_help": "お困りですか？",
+    "initial_message": "こんにちは！私は Butler です。何かお手伝いできることはありますか？",
+    "input_placeholder": "理想の住環境について Butler に相談する...",
+    "understanding": "承知いたしました。ご要望に合わせた物件を優先的にご紹介します。"
+  },
+  "Listings": {
+    "search_placeholder": "エリア、通り、特徴を検索...",
+    "filter": "フィルター",
+    "view_list": "リスト",
+    "view_map": "マップ",
+    "butler_insight_title": "執事の洞察：",
+    "butler_insight_body": "あなたのライフスタイルに基づき、以下の物件は「静かさ」と「日当たり」において優れています。",
+    "match_score": "{score}% マッチ",
+    "view_detail": "詳細を見る",
+    "per_month": "/ 月",
+    "loading": "読み込み中...",
+    "not_found": "物件が見つかりませんでした",
+    "map_placeholder_title": "スマートマップモード",
+    "map_placeholder_body": "Google Maps APIを統合し、周辺施設を正確に表示する予定です。"
+  },
+  "ListingDetail": {
+    "gallery": "ギャラリー",
+    "rent": "月額賃料",
+    "description_title": "物件紹介",
+    "description_empty": "詳細な紹介はありません。",
+    "verified_facts_title": "検証済みの物理的事実",
+    "verified_facts_empty": "検証済みのデータはまだありません。",
+    "verified": "検証済み",
+    "unverified": "未確認",
+    "butler_report_title": "執事の予測レポート",
+    "butler_report_footer": "物件情報に基づき、Gemini 3 Flashによって自動生成されました",
+    "start_inspection": "内見ガイドを開始",
+    "book_viewing": "内見を予約する",
+    "booking_stats": "{count}人の入居希望者が執事を通じて事前審査を完了しました"
+  },
+  "Inspection": {
+    "title": "内見チェックリスト",
+    "tagline": "私のガイドに従って、この物件があなたのニーズに合っているか確認しましょう。",
+    "points_count": "{count}個のチェックポイント",
+    "finish_report": "内見を完了してレポートを作成",
+    "butler_analysis": "執事の分析：",
+    "back": "戻る",
+    "next": "次へ"
+  }
+}

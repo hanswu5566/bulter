@@ -1,0 +1,82 @@
+{
+  "Navbar": {
+    "brand_name": "Butler.",
+    "brand_subtitle": "智慧租房管家",
+    "title": "AI House Rent",
+    "explore": "探索房源",
+    "import": "导入房源",
+    "reports": "实勘报告",
+    "switch_landlord": "切换房东",
+    "switch_tenant": "切换房客",
+    "login": "登录",
+    "profile": "个人设定",
+    "logout": "登出",
+    "my_listings": "我的房源"
+  },
+  "HomePage": {
+    "badge": "AI 驱动的智慧租房革命",
+    "hero_title_1": "让您的租房过程",
+    "hero_title_2": "变得",
+    "hero_title_3": "优雅",
+    "hero_title_4": "且",
+    "hero_title_5": "透明",
+    "hero_description": "Butler. 利用 Gemini AI 担任您的“虚拟管家”。从精准匹配到实地看房细节引导，我们确保您找到的是家，而不是麻烦。",
+    "start_discovery_tenant": "开启居住体验探索",
+    "start_discovery_landlord": "定义理想房客特质",
+    "browse_listings": "直接浏览房源",
+    "feature_1_title": "零摩擦迁移",
+    "feature_1_desc": "粘贴任何網址，AI 自动为您抓取并结构化房源资料。",
+    "feature_2_title": "AI 实勘引导",
+    "feature_2_desc": "看房时管家全程陪同，引导您检查水压、隔音等隐藏细节。",
+    "feature_3_title": "信任匹配",
+    "feature_3_desc": "通过事实数据闭环，建立真实透明的租房信任体系。",
+    "initial_interview_msg": "您好！我是您的智慧租屋管家。在開始尋找房源前，能先告訴我您理想的居住預算與區域嗎？"
+    },
+    "AIButler": {
+    "name": "Butler",
+    "tagline": "Gemini 3 Flash Powered",
+    "fab_help": "需要帮忙吗？",
+    "initial_message": "您好！我是您的智慧租屋管家 Butler。有什么我可以帮您的吗？",
+    "input_placeholder": "跟 Butler 说说您的理想居住环境...",
+    "understanding": "我了解了。我会根据您的需求，在房源列表中为您优先推荐适合您的物件。"
+  },
+  "Listings": {
+    "search_placeholder": "搜索区域、街道、房源特征...",
+    "filter": "筛选",
+    "view_list": "列表",
+    "view_map": "地图",
+    "butler_insight_title": "管家预判：",
+    "butler_insight_body": "根据您的生活习惯，以下房源在“安静程度”与“采光”方面表现优异。",
+    "match_score": "{score}% 匹配",
+    "view_detail": "查看详情",
+    "per_month": "/ 月",
+    "loading": "载入中...",
+    "not_found": "未找到房源",
+    "map_placeholder_title": "智慧地图模式",
+    "map_placeholder_body": "正在整合 Google Maps API，届时将为您精确标注房源周边生活机能。"
+  },
+  "ListingDetail": {
+    "gallery": "照片墙",
+    "rent": "月租金",
+    "description_title": "房源介绍",
+    "description_empty": "尚无详细介绍。",
+    "verified_facts_title": "实勘事实数据",
+    "verified_facts_empty": "尚无实勘数据回流。",
+    "verified": "已验证",
+    "unverified": "待确认",
+    "butler_report_title": "管家预判报告",
+    "butler_report_footer": "由 Gemini 3 Flash 根据房源信息自动生成",
+    "start_inspection": "开启实地看房导引",
+    "book_viewing": "预约看房",
+    "booking_stats": "已有 {count} 位房客通过管家完成预审"
+  },
+  "Inspection": {
+    "title": "实地看房清单",
+    "tagline": "请跟随我的引導，确保这间房源符合您的生活需求。",
+    "points_count": "{count} 个检查点",
+    "finish_report": "完成实勘并产生报告",
+    "butler_analysis": "管家分析：",
+    "back": "回上页",
+    "next": "下一组"
+  }
+}
