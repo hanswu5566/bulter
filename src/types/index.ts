@@ -6,7 +6,8 @@ export interface User {
   email: string | null;
   image: string | null;
   role: UserRole;
-  profileTags: string[] | null;
+  aiTags: any | null;
+  trustSummary: string | null;
 }
 
 export interface ListingFeatures {
@@ -36,7 +37,9 @@ export interface Listing {
   address: string;
   price: number;
   images: string[];
+  marketTags: any | null;
   features: ListingFeatures | null;
+  rawScrapedData: any | null;
   butlerInsight: ButlerInsight | null;
   landlordId: string;
   matchScore?: number;

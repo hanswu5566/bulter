@@ -4,6 +4,7 @@ export type ScrapeResult = {
   rawContent: string;
   source: string;
   url: string;
+  images?: string[];
 };
 
 export async function scrapeListing(url: string): Promise<ScrapeResult> {

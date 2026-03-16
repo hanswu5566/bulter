@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Sparkles, MapPin, Calendar, 
   ShieldCheck, AlertTriangle, ArrowLeft, Loader2,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Building2, Ruler, 
+  CreditCard, Zap, Waves, Sofa, Home, Check
 } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { use } from "react";
@@ -28,6 +29,18 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
         setLoading(false);
       })
       .catch(() => setLoading(false));
+
+    // 監聽來自 Butler 的診斷更新事件
+    const handleUpdate = (e: any) => {
+      if (e.detail?.butlerInsight) {
+        setListing((prev: any) => ({
+          ...prev,
+          butlerInsight: e.detail.butlerInsight
+        }));
+      }
+    };
+    window.addEventListener('listing-updated', handleUpdate);
+    return () => window.removeEventListener('listing-updated', handleUpdate);
   }, [id]);
 
   if (loading) return (
@@ -54,28 +67,38 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
     setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
-  const verifiedFacts = listing.features?.verifiedFacts || {};
+  const features = listing.features || {};
+  const verifiedFacts = features.verifiedFacts || {};
 
   return (
     <div className="min-h-screen bg-surface">
-      {/* Hero Gallery Carousel */}
-      <div className="h-[40vh] md:h-[60vh] bg-gray-200 relative overflow-hidden group">
+      {/* Hero Gallery Carousel - Improved for mixed aspect ratios */}
+      <div className="h-[50vh] md:h-[70vh] bg-black relative overflow-hidden group">
+        {/* Background Blur Layer */}
+        <div className="absolute inset-0 scale-110 blur-3xl opacity-40">
+           <img 
+            src={images[currentImageIndex]} 
+            alt="blur background" 
+            className="w-full h-full object-cover"
+           />
+        </div>
+
         <AnimatePresence mode="wait">
           <motion.img 
             key={currentImageIndex}
             src={images[currentImageIndex]} 
             alt={`Gallery ${currentImageIndex + 1}`}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
-            className="w-full h-full object-cover"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="relative w-full h-full object-contain z-10"
           />
         </AnimatePresence>
 
         {/* Back Button */}
-        <Link href="/listings" className="absolute top-6 left-6 bg-white/90 p-3 rounded-full shadow-lg hover:bg-white transition-colors z-10">
-          <ArrowLeft className="w-5 h-5" />
+        <Link href="/listings" className="absolute top-6 left-6 bg-white/90 p-3 rounded-full shadow-lg hover:bg-white transition-colors z-20">
+          <ArrowLeft className="w-5 h-5 text-on-surface" />
         </Link>
 
         {/* Navigation Arrows */}
@@ -83,31 +106,31 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
           <>
             <button 
               onClick={prevImage}
-              className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-3 rounded-full transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm"
+              className="absolute left-6 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-4 rounded-full transition-all opacity-0 group-hover:opacity-100 backdrop-blur-md z-20 border border-white/10"
             >
-              <ChevronLeft className="w-6 h-6" />
+              <ChevronLeft className="w-8 h-8" />
             </button>
             <button 
               onClick={nextImage}
-              className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-3 rounded-full transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm"
+              className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-4 rounded-full transition-all opacity-0 group-hover:opacity-100 backdrop-blur-md z-20 border border-white/10"
             >
-              <ChevronRight className="w-6 h-6" />
+              <ChevronRight className="w-8 h-8" />
             </button>
           </>
         )}
 
-        {/* Image Counters / Indicators */}
-        <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-md text-white px-4 py-2 rounded-full text-xs font-bold z-10 border border-white/20">
+        {/* Image Counters */}
+        <div className="absolute bottom-8 right-8 bg-black/40 backdrop-blur-xl text-white px-6 py-2 rounded-full text-xs font-black z-20 border border-white/10 tracking-widest">
           {currentImageIndex + 1} / {images.length}
         </div>
 
-        {/* Mini Indicators (Dashes) */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+        {/* Indicators */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-20">
           {images.map((_, idx) => (
             <button 
               key={idx}
               onClick={() => setCurrentImageIndex(idx)}
-              className={`h-1.5 rounded-full transition-all ${idx === currentImageIndex ? 'w-8 bg-white shadow-lg' : 'w-2 bg-white/40'}`}
+              className={`h-1 rounded-full transition-all ${idx === currentImageIndex ? 'w-10 bg-white shadow-xl' : 'w-2 bg-white/30'}`}
             />
           ))}
         </div>
@@ -129,6 +152,106 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
               <div className="text-xs text-gray-400 font-bold mb-1">{t('rent')}</div>
               <div className="text-xl font-bold text-primary">NT$ {listing.price?.toLocaleString()}</div>
             </div>
+            {features.type && (
+              <div className="butler-card bg-white text-center">
+                <div className="text-xs text-gray-400 font-bold mb-1">{t('type')}</div>
+                <div className="text-lg font-bold">{features.type}</div>
+              </div>
+            )}
+            {features.size && (
+              <div className="butler-card bg-white text-center">
+                <div className="text-xs text-gray-400 font-bold mb-1">{t('size')}</div>
+                <div className="text-lg font-bold">{features.size} {t('unit_ping')}</div>
+              </div>
+            )}
+            {features.floor && (
+              <div className="butler-card bg-white text-center">
+                <div className="text-xs text-gray-400 font-bold mb-1">{t('floor')}</div>
+                <div className="text-lg font-bold">{features.floor}{features.totalFloor ? ` / ${features.totalFloor}` : ""} F</div>
+              </div>
+            )}
+          </div>
+
+          {/* Detailed Info Grid */}
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold mb-6">{t('details_title')}</h2>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
+                <div className="flex items-center gap-3 text-gray-500">
+                  <CreditCard className="w-5 h-5" />
+                  <span>{t('deposit')}</span>
+                </div>
+                <span className="font-bold">{features.deposit || "面議"}</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
+                <div className="flex items-center gap-3 text-gray-500">
+                  <Zap className="w-5 h-5" />
+                  <span>{t('electricity')}</span>
+                </div>
+                <span className="font-bold">{features.electricity || "台水台電"}</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
+                <div className="flex items-center gap-3 text-gray-500">
+                  <Waves className="w-5 h-5" />
+                  <span>{t('water')}</span>
+                </div>
+                <span className="font-bold">{features.water || "台水台電"}</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
+                <div className="flex items-center gap-3 text-gray-500">
+                  <Home className="w-5 h-5" />
+                  <span>{t('pets')}</span>
+                </div>
+                <span className={`font-bold ${features.pets === "allow" ? "text-success" : "text-gray-400"}`}>
+                  {features.pets === "allow" ? t('pet_allow') : t('pet_deny')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Appliances & Furniture */}
+          <div className="mb-12 space-y-8">
+            {features.appliances && features.appliances.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-bold mb-6">{t('appliances_title')}</h2>
+                <div className="flex flex-wrap gap-2">
+                  {features.appliances.map((item: string) => (
+                    <div key={item} className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 text-sm font-bold">
+                      <Check className="w-4 h-4 text-success" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {features.furniture && features.furniture.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-bold mb-6">{t('furniture_title')}</h2>
+                <div className="flex flex-wrap gap-2">
+                  {features.furniture.map((item: string) => (
+                    <div key={item} className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 text-sm font-bold">
+                      <Check className="w-4 h-4 text-success" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {features.others && features.others.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-bold mb-6">{t('others_title')}</h2>
+                <div className="flex flex-wrap gap-2">
+                  {features.others.map((item: string) => (
+                    <div key={item} className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 text-sm font-bold">
+                      <Check className="w-4 h-4 text-success" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mb-12">

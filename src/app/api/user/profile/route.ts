@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     const { tags } = await req.json();
     const updatedUser = await db.user.update({
       where: { id: session.user.id },
-      data: { profileTags: tags },
+      data: { aiTags: tags },
     });
     return successResponse(updatedUser);
   });

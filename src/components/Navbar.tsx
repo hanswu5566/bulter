@@ -1,7 +1,7 @@
 "use client";
 
 import { 
-  House, User, ArrowLeftRight, LogIn, LogOut, 
+  User, ArrowLeftRight, LogIn, LogOut, 
   Settings, List, PlusCircle, ClipboardCheck,
   Compass, LayoutDashboard, Loader2
 } from "lucide-react";
@@ -10,6 +10,16 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+
+// --- Custom Butler Icon (Matching the FAB style) ---
+const ButlerIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="7" r="4" />
+    <path d="M5 21v-2a7 7 0 0 1 7-7 7 7 0 0 1 7 7v2" />
+    <path d="M10 14.5l2 1 2-1v2l-2-1-2 1v-2z" fill="currentColor" stroke="none" />
+    <path d="M10 14.5l2 1 2-1-2 1-2-1z" fill="currentColor" />
+  </svg>
+);
 
 export default function Navbar() {
   const { data: session, update, status } = useSession();
@@ -54,7 +64,7 @@ export default function Navbar() {
         <div className="flex items-center gap-10">
           <Link href="/" className="flex items-center gap-3 group">
             <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
-              <House className="text-white w-6 h-6" />
+              <ButlerIcon className="text-white w-6 h-6" />
             </div>
             <div className="flex flex-col">
               <span className="font-black text-xl tracking-tight text-on-surface leading-none">{t('brand_name')}</span>

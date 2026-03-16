@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { calculateMatchScore } from "@/lib/matching";
 import { withErrorHandler, successResponse, errorResponse } from "@/lib/api-utils";
-import { uploadFromUrl } from "@/lib/storage";
+import { uploadFromUrl, getSignedDownloadUrl } from "@/lib/storage";
 
 export async function GET() {
   return withErrorHandler(async () => {
@@ -23,7 +23,7 @@ export async function GET() {
       }
     });
 
-    const userTags = (session?.user as any)?.profileTags as string[] | undefined;
+    const userTags = (session?.user as any)?.aiTags as string[] | undefined;
     
     const processedListings = await Promise.all(
       listings.map(async (l) => {
@@ -31,8 +31,12 @@ export async function GET() {
           ? await calculateMatchScore(userTags, l) 
           : 70;
           
+        // 幫公開列表也生成 Signed URLs
+        const signedImages = l.images ? await Promise.all(l.images.map(img => getSignedDownloadUrl(img))) : [];
+
         return { 
           ...l, 
+          images: signedImages,
           matchScore,
           isOwner: userId === l.landlordId 
         };
@@ -60,7 +64,7 @@ export async function POST(req: Request) {
       price: rawData.price,
       images: rawData.images || [],
       features: rawData.features,
-      raw591Data: rawData.raw591Data,
+      rawScrapedData: rawData.raw591Data,
       landlordId: session.user.id!,
     };
 

@@ -25,7 +25,7 @@ export default function ProfilePage() {
     );
   }
 
-  const profileTags = (session.user as any)?.profileTags || [];
+  const profileTags = (session.user as any)?.aiTags || [];
 
   return (
     <main className="min-h-screen bg-surface p-6 md:p-12">

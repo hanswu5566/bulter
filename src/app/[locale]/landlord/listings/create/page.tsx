@@ -312,7 +312,12 @@ export default function CreateListingPage() {
                         className={`relative aspect-square rounded-2xl overflow-hidden group border-2 transition-all cursor-pointer ${idx === 0 ? 'border-primary shadow-md' : 'border-gray-100'}`}
                         onClick={() => setAsCover(idx)}
                       >
-                        <Image src={img} alt={`房源照片 ${idx + 1}`} fill className="object-cover" />
+                        <img 
+                          src={img} 
+                          alt={`房源照片 ${idx + 1}`} 
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover" 
+                        />
                         
                         {/* Status Badges */}
                         {idx === 0 && (

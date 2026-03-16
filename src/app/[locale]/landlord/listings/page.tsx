@@ -79,9 +79,12 @@ export default function MyListingsPage() {
                       
                       {/* Action Overlay */}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                        <button className="bg-white text-on-surface p-3 rounded-2xl hover:bg-primary hover:text-white transition-all shadow-lg cursor-pointer">
+                        <Link 
+                          href={`/landlord/listings/${item.id}/edit`}
+                          className="bg-white text-on-surface p-3 rounded-2xl hover:bg-primary hover:text-white transition-all shadow-lg cursor-pointer"
+                        >
                           <Pencil className="w-5 h-5" />
-                        </button>
+                        </Link>
                         <button 
                           onClick={() => handleDelete(item.id)}
                           className="bg-white text-error p-3 rounded-2xl hover:bg-error hover:text-white transition-all shadow-lg cursor-pointer"

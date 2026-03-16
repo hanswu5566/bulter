@@ -1,12 +1,34 @@
 import * as cheerio from "cheerio";
 
+const USER_AGENTS = [
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15"
+];
+
 export async function scrape591(url: string) {
   try {
+    // 增加隨機延遲 500ms - 1500ms，模擬真人行為
+    await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
+
+    const randomUA = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+    
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": randomUA,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://rent.591.com.tw/?kind=0&region=1", // 模擬從搜尋列表頁進來
+        "Cache-Control": "max-age=0",
+        "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"macOS"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1"
       },
     });
     
@@ -22,8 +44,57 @@ export async function scrape591(url: string) {
     const ogImage = $('meta[property="og:image"]').attr('content');
     
     // 2. 擷取所有房源照片 (591 圖片路徑特徵)
-    const imageMatches = html.match(/https:\/\/img[0-9]\.591\.com\.tw\/house\/[0-9]{4}\/[0-9/]+\/[0-9]+\.[a-zA-Z!0-9.]+/g) || [];
-    const uniqueImages = Array.from(new Set(imageMatches)).slice(0, 15);
+    // 591 的圖片網址在 HTML 中常會被轉義成 https:\/\/img1.591.com.tw\/... 或使用 \u002F
+    // 我們先將常見的轉義字元還原，再進行匹配以提高準確度
+    const normalizedHtml = html
+      .replace(/\\u002f/gi, '/')
+      .replace(/\\u003a/gi, ':')
+      .replace(/\\\//g, '/');
+
+    const imageMap = new Map<string, string>();
+
+    // 方法 A: 解析 JSON-LD (最穩定，SEO 標準格式)
+    $('script[type="application/ld+json"]').each((_, el) => {
+      try {
+        const json = JSON.parse($(el).html() || '{}');
+        const images = json.image || json.photos || [];
+        if (Array.isArray(images)) {
+          images.forEach(img => {
+            if (typeof img === 'string' && img.includes('591.com.tw')) {
+              imageMap.set(img.split('!')[0], img);
+            }
+          });
+        } else if (typeof images === 'string' && images.includes('591.com.tw')) {
+          imageMap.set(images.split('!')[0], images);
+        }
+      } catch (e) {}
+    });
+
+    // 方法 B: 寬鬆 Regex 匹配 (作為備援)
+    const imageRegex = /https?:\/\/[a-z0-9.]+\.591\.com\.tw\/house\/[0-9]{4}\/[0-9/]+\/[0-9]+[^\"' \n\r<>\\)]+/g;
+    const imageMatches = normalizedHtml.match(imageRegex) || [];
+    
+    imageMatches.forEach(fullUrl => {
+      const baseUrl = fullUrl.split('!')[0];
+      const existingUrl = imageMap.get(baseUrl);
+      if (!existingUrl || fullUrl.length > existingUrl.length) {
+        imageMap.set(baseUrl, fullUrl);
+      }
+    });
+
+    const uniqueImages = Array.from(imageMap.values())
+      .filter(url => url.includes('/house/'))
+      .slice(0, 25);
+
+    // 如果 ogImage 存在，處理轉義後加入
+    if (ogImage) {
+      const cleanOgImage = ogImage.replace(/\\u002f/gi, '/').replace(/\\u003a/gi, ':').replace(/\\\//g, '/');
+      const ogBase = cleanOgImage.split('!')[0];
+      if (!imageMap.has(ogBase)) {
+        uniqueImages.unshift(cleanOgImage);
+      }
+    }
+
     
     // 3. 591 核心數據提取：解析 window.__NUXT__
     let nuxtDataContent = "";
@@ -75,6 +146,7 @@ export async function scrape591(url: string) {
       rawContent: combinedContent.substring(0, 50000), // 限制在 50k 字元，足夠容納所有關鍵資訊
       source: "TW_591" as const,
       url,
+      images: uniqueImages,
     };
   } catch (error) {
     console.error("591 Scraper error:", error);

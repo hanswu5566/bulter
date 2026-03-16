@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { scrapeListing } from "@/lib/scrapers";
-import { parseListingWithAI, parseListingFromImage } from "@/lib/ai";
-import { db } from "@/lib/db";
+import { parseListingWithAI } from "@/lib/ai";
 import { withErrorHandler, successResponse, errorResponse } from "@/lib/api-utils";
 
 export async function POST(req: Request) {
@@ -14,21 +13,27 @@ export async function POST(req: Request) {
 
     const { url, text } = await req.json();
     
-    let contentToParse = "";
-    let source = "GENERIC";
-
     if (url) {
       const result = await scrapeListing(url);
-      contentToParse = result.rawContent;
-      source = result.source;
-    } else if (text) {
-      contentToParse = text;
+      const structuredData = await parseListingWithAI(result.rawContent, result.source);
+
+      if (!structuredData) {
+        return errorResponse("AI failed to parse listing data", 500);
+      }
+
+      // If scraper found images, ensure they are in the result
+      // Prioritize scraper images as AI might mangle URLs or omit them
+      if (result.images && result.images.length > 0) {
+        structuredData.images = result.images;
+      }
+
+      return successResponse(structuredData);
+    }
+ else if (text) {
+      const structuredData = await parseListingWithAI(text, "GENERIC");
+      return successResponse(structuredData);
     } else {
       return errorResponse("Invalid input: Please provide a listing URL or text.", 400);
     }
-
-    const structuredData = await parseListingWithAI(contentToParse, source);
-    
-    return successResponse(structuredData);
   });
 }

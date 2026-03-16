@@ -1,11 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+import { MODELS, genAI } from "./ai";
 
 export async function calculateMatchScore(userTags: string[], listingData: any) {
   if (!userTags || userTags.length === 0) return 70; // Default score
 
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: MODELS.STANDARD });
 
   const prompt = `
     Compare the following tenant preferences with the rental listing details.

@@ -30,6 +30,28 @@ export async function getSignedUploadUrl(fileName: string, contentType: string) 
   };
 }
 
+export async function getSignedDownloadUrl(url: string) {
+  if (!url || !url.includes(bucketName)) return url;
+  
+  try {
+    // 從完整網址中提取路徑 (例如 imports/xxx.webp)
+    const filePath = url.split(`${bucketName}/`)[1];
+    if (!filePath) return url;
+
+    const file = storage.bucket(bucketName).file(filePath);
+    const [signedUrl] = await file.getSignedUrl({
+      version: "v4",
+      action: "read",
+      expires: Date.now() + 60 * 60 * 1000, // 1 小時有效
+    });
+
+    return signedUrl;
+  } catch (error) {
+    console.error("Error generating signed URL:", error);
+    return url;
+  }
+}
+
 export async function uploadFromUrl(url: string) {
   try {
     console.log(`Attempting to transfer and optimize image: ${url}`);
