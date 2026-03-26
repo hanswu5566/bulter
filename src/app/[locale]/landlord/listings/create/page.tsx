@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { 
   PlusCircle, Sparkles, Link as LinkIcon, 
   Loader2, CheckCircle, ArrowLeft, 
@@ -14,6 +16,9 @@ import {
 type CreateMode = "CHOICE" | "MANUAL" | "IMPORT";
 
 export default function CreateListingPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.email === "shankesleroux8988@gmail.com";
+  const t = useTranslations("CreateListing");
   const [mode, setMode] = useState<CreateMode>("CHOICE");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -134,7 +139,7 @@ export default function CreateListingPage() {
       }));
     } catch (err) {
       console.error("Upload failed:", err);
-      alert("圖片上傳失敗");
+      alert(t("upload_failed"));
     } finally {
       setUploading(false);
     }
@@ -148,7 +153,7 @@ export default function CreateListingPage() {
         body: JSON.stringify(listing),
         headers: { "Content-Type": "application/json" },
       });
-      if (!res.ok) throw new Error("儲存失敗");
+      if (!res.ok) throw new Error(t("save_failed"));
       window.location.href = "/listings";
     } catch (err: any) {
       setError(err.message);
@@ -188,28 +193,30 @@ export default function CreateListingPage() {
           {/* CHOICE STAGE */}
           {mode === "CHOICE" && (
             <motion.div key="choice" initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} className="text-center py-12">
-              <h1 className="text-5xl font-black text-on-surface mb-4">發布您的精選房源</h1>
-              <p className="text-gray-500 mb-16 text-lg">選擇最適合您的上架方式，讓 AI 協助處理繁瑣細節。</p>
+              <h1 className="text-5xl font-black text-on-surface mb-4">{t("title")}</h1>
+              <p className="text-gray-500 mb-16 text-lg">{t("subtitle")}</p>
               <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                 <button onClick={() => setMode("MANUAL")} className="butler-card bg-white p-12 hover:border-primary transition-all group flex flex-col items-center text-center gap-6">
                   <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center text-gray-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
                     <PlusCircle className="w-10 h-10" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold mb-2">手動精確輸入</h3>
-                    <p className="text-sm text-gray-400">完整填寫 591 級別的詳細規格</p>
+                    <h3 className="text-2xl font-bold mb-2">{t("manual_title")}</h3>
+                    <p className="text-sm text-gray-400">{t("manual_desc")}</p>
                   </div>
                 </button>
-                <button onClick={() => setMode("IMPORT")} className="butler-card bg-primary/[0.02] border-2 border-primary/20 p-12 hover:border-primary transition-all group flex flex-col items-center text-center gap-6 relative overflow-hidden">
-                  <div className="absolute top-4 right-4 bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full">RECOMMENDED</div>
-                  <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                    <Sparkles className="w-10 h-10" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold mb-2">AI 快速匯入</h3>
-                    <p className="text-sm text-gray-400">貼上網址或描述文字自動填表</p>
-                  </div>
-                </button>
+                {isAdmin && (
+                  <button onClick={() => setMode("IMPORT")} className="butler-card bg-primary/[0.02] border-2 border-primary/20 p-12 hover:border-primary transition-all group flex flex-col items-center text-center gap-6 relative overflow-hidden">
+                    <div className="absolute top-4 right-4 bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full">{t("recommended")}</div>
+                    <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                      <Sparkles className="w-10 h-10" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold mb-2">{t("ai_title")}</h3>
+                      <p className="text-sm text-gray-400">{t("ai_desc")}</p>
+                    </div>
+                  </button>
+                )}
               </div>
             </motion.div>
           )}
@@ -218,26 +225,26 @@ export default function CreateListingPage() {
           {mode === "IMPORT" && (
             <motion.div key="import" initial={{opacity:0, x:20}} animate={{opacity:1, x:0}} className="max-w-2xl mx-auto py-12">
               <button onClick={() => setMode("CHOICE")} className="flex items-center gap-2 text-gray-400 font-bold mb-8 hover:text-on-surface cursor-pointer">
-                <ArrowLeft className="w-4 h-4" /> 返回選擇
+                <ArrowLeft className="w-4 h-4" /> {t("back_to_choice")}
               </button>
               <div className="text-center mb-12">
-                <h1 className="text-3xl font-black mb-2 text-on-surface">AI 智慧解析上架</h1>
-                <p className="text-gray-500 text-sm">支援 591、Facebook 貼文文字或任何網址</p>
+                <h1 className="text-3xl font-black mb-2 text-on-surface">{t("ai_import_title")}</h1>
+                <p className="text-gray-500 text-sm">{t("ai_import_subtitle")}</p>
               </div>
               <div className="butler-card bg-white p-8 space-y-6">
                 <textarea
                   rows={8}
                   value={importInput}
                   onChange={(e) => setImportInput(e.target.value)}
-                  placeholder="在此貼上房源網址，或是複製整段房源描述內容..."
+                  placeholder={t("import_placeholder")}
                   className="w-full p-6 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary transition-all text-sm leading-relaxed"
                 />
                 <button onClick={handleImport} disabled={loading || !importInput.trim()} className="w-full bg-primary text-white py-5 rounded-2xl font-black shadow-xl hover:shadow-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-3 cursor-pointer">
                   {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Sparkles className="w-6 h-6" />}
-                  開始解析並填表
+                  {t("btn_start_import")}
                 </button>
               </div>
-              {loading && <div className="mt-12 text-center animate-pulse text-primary font-bold">管家正在提取房源細節...</div>}
+              {loading && <div className="mt-12 text-center animate-pulse text-primary font-bold">{t("ai_processing")}</div>}
             </motion.div>
           )}
 
@@ -250,13 +257,13 @@ export default function CreateListingPage() {
                 <header className="flex justify-between items-center">
                   <div>
                     <button onClick={() => setMode("CHOICE")} className="flex items-center gap-2 text-gray-400 font-bold mb-2 hover:text-on-surface cursor-pointer">
-                      <ArrowLeft className="w-4 h-4" /> 返回
+                      <ArrowLeft className="w-4 h-4" /> {t("back")}
                     </button>
-                    <h1 className="text-4xl font-black text-on-surface">完善房源細節</h1>
+                    <h1 className="text-4xl font-black text-on-surface">{t("refine_title")}</h1>
                   </div>
                   <div className="bg-success/10 text-success px-4 py-2 rounded-2xl flex items-center gap-2 text-sm font-bold">
                     <ShieldCheck className="w-4 h-4" />
-                    AI 輔助優化中
+                    {t("ai_optimizing")}
                   </div>
                 </header>
 
@@ -264,33 +271,33 @@ export default function CreateListingPage() {
                 <section className="space-y-8 bg-white p-10 rounded-[2.5rem] border border-gray-100 shadow-sm">
                   <div className="flex items-center gap-3 mb-4">
                     <Building2 className="text-primary w-6 h-6" />
-                    <h2 className="text-xl font-bold">房屋基本狀況</h2>
+                    <h2 className="text-xl font-bold">{t("basic_info")}</h2>
                   </div>
                   <div className="space-y-6">
                     <div>
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">房源標題 (吸引房客的第一眼)</label>
-                      <input value={listing.title} onChange={(e) => setListing({...listing, title:e.target.value})} placeholder="例如：大安區景觀陽台套房，近捷運 3 分鐘" className="w-full p-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary transition-all font-bold text-lg" />
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">{t("listing_title_label")}</label>
+                      <input value={listing.title} onChange={(e) => setListing({...listing, title:e.target.value})} placeholder={t("listing_title_placeholder")} className="w-full p-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary transition-all font-bold text-lg" />
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">物件型態</label>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">{t("object_type")}</label>
                         <select value={listing.features.type} onChange={(e) => setListing({...listing, features: {...listing.features, type:e.target.value}})} className="w-full p-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary appearance-none">
-                          <option>獨立套房</option>
-                          <option>分租套房</option>
-                          <option>雅房</option>
-                          <option>整層住家</option>
+                          <option value="獨立套房">{t("types.studio")}</option>
+                          <option value="分租套房">{t("types.shared_studio")}</option>
+                          <option value="雅房">{t("types.room")}</option>
+                          <option value="整層住家">{t("types.entire_house")}</option>
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">坪數 (坪)</label>
-                        <input value={listing.features.size} onChange={(e) => setListing({...listing, features: {...listing.features, size:e.target.value}})} placeholder="例如：8" className="w-full p-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary" />
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">{t("size_label")}</label>
+                        <input value={listing.features.size} onChange={(e) => setListing({...listing, features: {...listing.features, size:e.target.value}})} placeholder={t("size_placeholder")} className="w-full p-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary" />
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">房源地址</label>
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">{t("address_label")}</label>
                       <div className="relative">
                         <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                        <input value={listing.address} onChange={(e) => setListing({...listing, address:e.target.value})} placeholder="例如：台北市大安區信義路三段..." className="w-full pl-12 pr-4 py-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary" />
+                        <input value={listing.address} onChange={(e) => setListing({...listing, address:e.target.value})} placeholder={t("address_placeholder")} className="w-full pl-12 pr-4 py-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary" />
                       </div>
                     </div>
                   </div>
@@ -301,9 +308,9 @@ export default function CreateListingPage() {
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-3">
                       <ImageIcon className="text-primary w-6 h-6" />
-                      <h2 className="text-xl font-bold">房源照片</h2>
+                      <h2 className="text-xl font-bold">{t("photos")}</h2>
                     </div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">第一張照片將自動成為房源封面</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t("photo_tip")}</p>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {listing.images.map((img: string, idx: number) => (
@@ -314,7 +321,7 @@ export default function CreateListingPage() {
                       >
                         <img 
                           src={img} 
-                          alt={`房源照片 ${idx + 1}`} 
+                          alt={`Listing Photo ${idx + 1}`} 
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover" 
                         />
@@ -322,13 +329,13 @@ export default function CreateListingPage() {
                         {/* Status Badges */}
                         {idx === 0 && (
                           <div className="absolute top-2 left-2 bg-primary text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg">
-                            COVER 封面
+                            {t("cover_badge")}
                           </div>
                         )}
                         
                         {/* Hover Overlay */}
                         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          {idx !== 0 && <span className="text-white text-[10px] font-black bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">設為封面</span>}
+                          {idx !== 0 && <span className="text-white text-[10px] font-black bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">{t("set_cover")}</span>}
                         </div>
 
                         {/* Remove Button */}
@@ -349,7 +356,7 @@ export default function CreateListingPage() {
                       ) : (
                         <>
                           <PlusCircle className="w-8 h-8" />
-                          <span className="text-xs font-bold">新增照片</span>
+                          <span className="text-xs font-bold">{t("add_photo")}</span>
                         </>
                       )}
                       <input 
@@ -363,7 +370,7 @@ export default function CreateListingPage() {
                     </label>
                   </div>
                   {listing.images.length === 0 && !uploading && (
-                    <p className="text-sm text-gray-400 text-center py-4">目前無照片，解析 591 網址可自動擷取。</p>
+                    <p className="text-sm text-gray-400 text-center py-4">{t("no_photo_tip")}</p>
                   )}
                 </section>
 
@@ -371,31 +378,31 @@ export default function CreateListingPage() {
                 <section className="space-y-8 bg-white p-10 rounded-[2.5rem] border border-gray-100 shadow-sm">
                   <div className="flex items-center gap-3 mb-4">
                     <CreditCard className="text-primary w-6 h-6" />
-                    <h2 className="text-xl font-bold">費用與規則</h2>
+                    <h2 className="text-xl font-bold">{t("fees_rules")}</h2>
                   </div>
                   <div className="grid grid-cols-2 gap-8">
                     <div>
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">每月租金 (TWD)</label>
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">{t("rent_label")}</label>
                       <input type="number" value={listing.price} onChange={(e) => setListing({...listing, price:parseInt(e.target.value)})} className="w-full p-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary text-xl font-black text-primary" />
                     </div>
                     <div>
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">押金模式</label>
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">{t("deposit_label")}</label>
                       <select value={listing.features.deposit} onChange={(e) => setListing({...listing, features: {...listing.features, deposit:e.target.value}})} className="w-full p-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary">
-                        <option>兩個月</option>
-                        <option>一個月</option>
-                        <option>面議</option>
+                        <option value="兩個月">{t("deposits.two_months")}</option>
+                        <option value="一個月">{t("deposits.one_month")}</option>
+                        <option value="面議">{t("deposits.negotiable")}</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">電費計法</label>
-                      <input value={listing.features.electricity} onChange={(e) => setListing({...listing, features: {...listing.features, electricity:e.target.value}})} placeholder="例如：台水台電 或 每度 5 元" className="w-full p-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary" />
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">{t("electricity_label")}</label>
+                      <input value={listing.features.electricity} onChange={(e) => setListing({...listing, features: {...listing.features, electricity:e.target.value}})} placeholder={t("electricity_placeholder")} className="w-full p-4 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div className="col-span-2">
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">寵物公約</label>
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">{t("pet_policy")}</label>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="flex bg-gray-50 p-1 rounded-xl h-fit">
-                          <button onClick={() => setListing({...listing, features: {...listing.features, pets: 'allow'}})} className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all ${listing.features.pets === 'allow' ? 'bg-white shadow text-primary' : 'text-gray-400'}`}>可寵</button>
-                          <button onClick={() => setListing({...listing, features: {...listing.features, pets: 'deny'}})} className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all ${listing.features.pets === 'deny' ? 'bg-white shadow text-primary' : 'text-gray-400'}`}>禁寵</button>
+                          <button onClick={() => setListing({...listing, features: {...listing.features, pets: 'allow'}})} className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all ${listing.features.pets === 'allow' ? 'bg-white shadow text-primary' : 'text-gray-400'}`}>{t("pets_allow")}</button>
+                          <button onClick={() => setListing({...listing, features: {...listing.features, pets: 'deny'}})} className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all ${listing.features.pets === 'deny' ? 'bg-white shadow text-primary' : 'text-gray-400'}`}>{t("pets_deny")}</button>
                         </div>
                         
                         <AnimatePresence>
@@ -407,13 +414,18 @@ export default function CreateListingPage() {
                               className="space-y-4"
                             >
                               <div className="flex flex-wrap gap-2">
-                                {["不限", "貓", "狗", "其他"].map(type => {
-                                  const isSelected = listing.features.petType === type;
+                                {[
+                                  { key: "none", val: "不限" },
+                                  { key: "cat", val: "貓" },
+                                  { key: "dog", val: "狗" },
+                                  { key: "other", val: "其他" }
+                                ].map(({ key, val }) => {
+                                  const isSelected = listing.features.petType === val;
                                   return (
                                     <button
-                                      key={type}
+                                      key={key}
                                       onClick={() => {
-                                        setListing({...listing, features: {...listing.features, petType: type}});
+                                        setListing({...listing, features: {...listing.features, petType: val}});
                                       }}
                                       className={`px-4 py-2 rounded-xl text-xs font-bold border-2 transition-all ${
                                         isSelected 
@@ -421,7 +433,7 @@ export default function CreateListingPage() {
                                           : 'border-gray-50 bg-gray-50 text-gray-400 hover:border-gray-200'
                                       }`}
                                     >
-                                      {type}
+                                      {t(`pet_types.${key}`)}
                                     </button>
                                   );
                                 })}
@@ -437,7 +449,7 @@ export default function CreateListingPage() {
                                     <input 
                                       value={listing.features.otherPetType || ""} 
                                       onChange={(e) => setListing({...listing, features: {...listing.features, otherPetType: e.target.value}})}
-                                      placeholder="請輸入其他寵物類型（如：兔子、鳥...）"
+                                      placeholder={t("other_pet_placeholder")}
                                       className="w-full p-3 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary text-sm font-bold"
                                     />
                                   </motion.div>
@@ -450,30 +462,40 @@ export default function CreateListingPage() {
                     </div>
                   </div>
                 </section>
-
+                              
                 {/* Section 3: Assets & Equipment */}
                 <section className="space-y-8 bg-white p-10 rounded-[2.5rem] border border-gray-100 shadow-sm">
                   <div className="flex items-center gap-3 mb-4">
                     <Zap className="text-primary w-6 h-6" />
-                    <h2 className="text-xl font-bold">設備與家具</h2>
+                    <h2 className="text-xl font-bold">{t("assets_equipment")}</h2>
                   </div>
                   
                   <div className="space-y-8">
                     {/* Appliances Category */}
                     <div>
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-4 block">家電設備</label>
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-4 block">{t("appliances")}</label>
                       <div className="flex flex-wrap gap-3">
-                        {["冷氣", "冰箱", "洗衣機", "電視", "熱水器", "微波爐", "飲水機", "吸塵器", "空氣清淨機"].map(item => (
+                        {[
+                          { key: "ac", val: "冷氣" },
+                          { key: "fridge", val: "冰箱" },
+                          { key: "washer", val: "洗衣機" },
+                          { key: "tv", val: "電視" },
+                          { key: "heater", val: "熱水器" },
+                          { key: "microwave", val: "微波爐" },
+                          { key: "water_dispenser", val: "飲水機" },
+                          { key: "vacuum", val: "吸塵器" },
+                          { key: "air_purifier", val: "空氣清淨機" }
+                        ].map(({ key, val }) => (
                           <button
-                            key={item}
-                            onClick={() => toggleFeature('appliances', item)}
+                            key={key}
+                            onClick={() => toggleFeature('appliances', val)}
                             className={`px-6 py-3 rounded-2xl text-sm font-bold border-2 transition-all ${
-                              listing.features.appliances.includes(item)
+                              listing.features.appliances.includes(val)
                                 ? 'border-primary bg-primary/5 text-primary shadow-sm'
                                 : 'border-gray-50 bg-gray-50 text-gray-400 hover:border-gray-200'
                             }`}
                           >
-                            {item}
+                            {t(`items.${key}`)}
                           </button>
                         ))}
                       </div>
@@ -481,19 +503,28 @@ export default function CreateListingPage() {
 
                     {/* Furniture Category */}
                     <div>
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-4 block">家具配置</label>
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-4 block">{t("furniture")}</label>
                       <div className="flex flex-wrap gap-3">
-                        {["床舖", "衣櫃", "書桌", "沙發", "茶几", "餐桌椅", "書架", "鞋櫃"].map(item => (
+                        {[
+                          { key: "bed", val: "床舖" },
+                          { key: "wardrobe", val: "衣櫃" },
+                          { key: "desk", val: "書桌" },
+                          { key: "sofa", val: "沙發" },
+                          { key: "coffee_table", val: "茶几" },
+                          { key: "dining_table", val: "餐桌椅" },
+                          { key: "bookshelf", val: "書架" },
+                          { key: "shoe_cabinet", val: "鞋櫃" }
+                        ].map(({ key, val }) => (
                           <button
-                            key={item}
-                            onClick={() => toggleFeature('furniture', item)}
+                            key={key}
+                            onClick={() => toggleFeature('furniture', val)}
                             className={`px-6 py-3 rounded-2xl text-sm font-bold border-2 transition-all ${
-                              (listing.features.furniture || []).includes(item)
+                              (listing.features.furniture || []).includes(val)
                                 ? 'border-primary bg-primary/5 text-primary shadow-sm'
                                 : 'border-gray-50 bg-gray-50 text-gray-400 hover:border-gray-200'
                             }`}
                           >
-                            {item}
+                            {t(`items.${key}`)}
                           </button>
                         ))}
                       </div>
@@ -501,19 +532,29 @@ export default function CreateListingPage() {
 
                     {/* Building/Others Category */}
                     <div>
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-4 block">公共設施與其他</label>
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1 mb-4 block">{t("others")}</label>
                       <div className="flex flex-wrap gap-3">
-                        {["電梯", "陽台", "網路", "第四台", "天然瓦斯", "管理員", "垃圾代收", "車位", "健身房"].map(item => (
+                        {[
+                          { key: "elevator", val: "電梯" },
+                          { key: "balcony", val: "陽台" },
+                          { key: "internet", val: "網路" },
+                          { key: "cable_tv", val: "第四台" },
+                          { key: "gas", val: "天然瓦斯" },
+                          { key: "manager", val: "管理員" },
+                          { key: "trash", val: "垃圾代收" },
+                          { key: "parking", val: "車位" },
+                          { key: "gym", val: "健身房" }
+                        ].map(({ key, val }) => (
                           <button
-                            key={item}
-                            onClick={() => toggleFeature('others', item)}
+                            key={key}
+                            onClick={() => toggleFeature('others', val)}
                             className={`px-6 py-3 rounded-2xl text-sm font-bold border-2 transition-all ${
-                              (listing.features.others || []).includes(item)
+                              (listing.features.others || []).includes(val)
                                 ? 'border-primary bg-primary/5 text-primary shadow-sm'
                                 : 'border-gray-50 bg-gray-50 text-gray-400 hover:border-gray-200'
                             }`}
                           >
-                            {item}
+                            {t(`items.${key}`)}
                           </button>
                         ))}
                       </div>
@@ -526,20 +567,20 @@ export default function CreateListingPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <FileText className="text-primary w-6 h-6" />
-                      <h2 className="text-xl font-bold">房源介紹</h2>
+                      <h2 className="text-xl font-bold">{t("description")}</h2>
                     </div>
                     <div className="flex bg-gray-50 p-1 rounded-xl">
                       <button 
                         onClick={() => setListing({...listing, _showPreview: false})} 
                         className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${!listing._showPreview ? 'bg-white shadow text-primary' : 'text-gray-400'}`}
                       >
-                        編輯
+                        {t("edit")}
                       </button>
                       <button 
                         onClick={() => setListing({...listing, _showPreview: true})} 
                         className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${listing._showPreview ? 'bg-white shadow text-primary' : 'text-gray-400'}`}
                       >
-                        預覽
+                        {t("preview")}
                       </button>
                     </div>
                   </div>
@@ -547,14 +588,14 @@ export default function CreateListingPage() {
                   {listing._showPreview ? (
                     <div 
                       className="w-full p-6 rounded-xl bg-gray-50 min-h-[150px] text-sm leading-relaxed listing-description overflow-y-auto"
-                      dangerouslySetInnerHTML={{ __html: listing.description || "尚未輸入內容" }}
+                      dangerouslySetInnerHTML={{ __html: listing.description || t("empty_description") }}
                     />
                   ) : (
                     <textarea 
                       value={listing.description} 
                       onChange={(e) => setListing({...listing, description:e.target.value})} 
                       rows={8} 
-                      placeholder="描述您的房源特色，或直接將 591 的描述貼上，管家會協助優化排版..." 
+                      placeholder={t("description_placeholder")} 
                       className="w-full p-6 rounded-xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary text-sm leading-relaxed" 
                     />
                   )}
@@ -567,22 +608,22 @@ export default function CreateListingPage() {
                   <div className="bg-primary p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
                     <Waves className="absolute -bottom-4 -right-4 w-32 h-32 opacity-10 rotate-12" />
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                      <ShieldCheck className="w-5 h-5" /> 上架預覽
+                      <ShieldCheck className="w-5 h-5" /> {t("publish_preview")}
                     </h3>
                     <div className="space-y-4 border-b border-white/20 pb-6 mb-6">
-                      <div className="text-xs opacity-70 font-bold uppercase">標題</div>
-                      <div className="text-sm font-bold line-clamp-2">{listing.title || "未填寫"}</div>
-                      <div className="text-xs opacity-70 font-bold uppercase">預估月租</div>
-                      <div className="text-2xl font-black">NT$ {listing.price?.toLocaleString()}</div>
+                      <div className="text-xs opacity-70 font-bold uppercase">{t("preview_title")}</div>
+                      <div className="text-sm font-bold line-clamp-2">{listing.title || t("not_filled")}</div>
+                      <div className="text-xs opacity-70 font-bold uppercase">{t("estimated_rent")}</div>
+                      <div className="text-2xl font-black">{t("currency")} {listing.price?.toLocaleString()}</div>
                     </div>
                     <button onClick={handleSave} disabled={loading || !listing.title || uploading} className="w-full bg-white text-primary py-5 rounded-2xl font-black shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer">
                       {loading && <Loader2 className="w-5 h-5 animate-spin" />}
-                      確認發布房源
+                      {t("btn_confirm_publish")}
                     </button>
                   </div>
                   <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm text-center">
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-loose">
-                      發布後 AI 管家將自動<br/>開始為您尋找最合適的房客
+                      {t("publish_tip_1")}<br/>{t("publish_tip_2")}
                     </p>
                   </div>
                 </div>

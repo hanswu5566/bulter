@@ -62,6 +62,8 @@ export async function POST(req: Request) {
       description: rawData.description,
       address: rawData.address,
       price: rawData.price,
+      lat: rawData.lat,
+      lng: rawData.lng,
       images: rawData.images || [],
       features: rawData.features,
       rawScrapedData: rawData.raw591Data,

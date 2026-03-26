@@ -75,6 +75,8 @@ model Listing {
   price         Int
   currency      String    @default("TWD") // TWD, JPY
   images        String[]  // Array of GCS paths
+  lat           Float?
+  lng           Float?
   
   // 市場與設施標籤 (Spec 02)
   marketTags    Json?     // TW: { rent_subsidy: bool, ... }, JP: { reikin: int, ... }
@@ -122,8 +124,8 @@ model Appointment {
 
 model InspectionReport {
   id            String      @id @default(cuid())
-  appointmentId String      @unique
-  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  appointmentId String?     @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
   
   listingId     String
   listing       Listing     @relation(fields: [listingId], references: [id])

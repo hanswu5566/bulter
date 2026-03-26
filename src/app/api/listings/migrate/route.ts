@@ -21,10 +21,13 @@ export async function POST(req: Request) {
         return errorResponse("AI failed to parse listing data", 500);
       }
 
-      // If scraper found images, ensure they are in the result
-      // Prioritize scraper images as AI might mangle URLs or omit them
+      // If scraper found images or coordinates, ensure they are in the result
       if (result.images && result.images.length > 0) {
         structuredData.images = result.images;
+      }
+      if (result.lat && result.lng) {
+        structuredData.lat = result.lat;
+        structuredData.lng = result.lng;
       }
 
       return successResponse(structuredData);

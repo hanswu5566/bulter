@@ -32,6 +32,13 @@ export default function Navbar() {
 
   const toggleRole = async () => {
     if (isSwitching) return;
+    
+    // Check if AI Butler has messages
+    if ((window as any).__BUTLER_HAS_MESSAGES__) {
+      const confirmed = window.confirm(t('switch_role_confirm'));
+      if (!confirmed) return;
+    }
+
     setIsSwitching(true);
     const newRole = role === "TENANT" ? "LANDLORD" : "TENANT";
     try {

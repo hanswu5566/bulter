@@ -42,7 +42,18 @@ export default function AIButler() {
   const [optimizationData, setOptimizationData] = useState<any>(null);
   const [inspectionData, setInspectionData] = useState<any>(null);
 
-  const role = (session?.user as any)?.role || "TENANT";
+  const role = useMemo(() => (session?.user as any)?.role || "TENANT", [session]);
+
+  // Expose message state for Navbar role-switching check
+  useEffect(() => {
+    (window as any).__BUTLER_HAS_MESSAGES__ = messages.length > 0;
+    return () => { (window as any).__BUTLER_HAS_MESSAGES__ = false; };
+  }, [messages]);
+
+  // Reset chat if role changes to prevent context mixup
+  useEffect(() => {
+    resetToMenu();
+  }, [role]);
 
   // --- Context Detection ---
   const context = useMemo(() => {
@@ -251,12 +262,13 @@ export default function AIButler() {
               
               {view === "INTERVIEW" && suggestedOptions.length > 0 && !loading && !isInterviewFinished && (
                 <div className="flex flex-wrap gap-1.5 pt-2">
-                  {suggestedOptions.map(opt => {
-                    const isSelected = multiSelectItems.includes(opt);
+                  {suggestedOptions.map((opt, idx) => {
+                    const optValue = typeof opt === 'object' ? (opt as any).content || (opt as any).label || JSON.stringify(opt) : String(opt);
+                    const isSelected = multiSelectItems.includes(optValue);
                     return (
                       <button 
-                        key={opt} 
-                        onClick={() => selectionMode === "SINGLE" ? nextInterviewStep(messages, opt) : toggleMultiItem(opt)} 
+                        key={`${idx}-${optValue}`} 
+                        onClick={() => selectionMode === "SINGLE" ? nextInterviewStep(messages, optValue) : toggleMultiItem(optValue)} 
                         className={`px-3 py-1.5 rounded-full border text-[11px] font-bold transition-all shadow-sm flex items-center gap-1 ${
                           isSelected 
                             ? 'bg-primary border-primary text-white' 
@@ -264,7 +276,7 @@ export default function AIButler() {
                         }`}
                       >
                         {isSelected && <Check className="w-2.5 h-2.5" />}
-                        {opt}
+                        {optValue}
                       </button>
                     );
                   })}
@@ -279,10 +291,10 @@ export default function AIButler() {
                 <div className="space-y-3">
                   {!isInterviewFinished ? (
                     <div className="flex gap-2">
-                      <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (nextInterviewStep(messages, input), setInput(""))} placeholder={t('input_placeholder')} className="flex-1 bg-gray-50 border-none rounded-xl px-4 py-2.5 text-[13px] focus:ring-1 focus:ring-primary outline-none" />
+                      <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (nextInterviewStep(messages, (selectionMode === "MULTIPLE" && multiSelectItems.length > 0) ? [...multiSelectItems, ...(input.trim() ? [input.trim()] : [])].join("、") : input), setInput(""))} placeholder={t('input_placeholder')} className="flex-1 bg-gray-50 border-none rounded-xl px-4 py-2.5 text-[13px] focus:ring-1 focus:ring-primary outline-none" />
                       
-                      {selectionMode === "MULTIPLE" && multiSelectItems.length > 0 ? (
-                        <button onClick={() => { nextInterviewStep(messages, multiSelectItems.join("、")); }} className="bg-success text-white px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold"><Check className="w-3.5 h-3.5" /> {t('btn_confirm_selection')}</button>
+                      {selectionMode === "MULTIPLE" && (multiSelectItems.length > 0 || input.trim() !== "") ? (
+                        <button onClick={() => { nextInterviewStep(messages, [...multiSelectItems, ...(input.trim() ? [input.trim()] : [])].join("、")); setInput(""); }} className="bg-success text-white px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold"><Check className="w-3.5 h-3.5" /> {t('btn_confirm_selection')}</button>
                       ) : (
                         <button onClick={() => { nextInterviewStep(messages, input); setInput(""); }} className="bg-primary text-white p-2.5 rounded-xl"><Send className="w-5 h-5" /></button>
                       )}

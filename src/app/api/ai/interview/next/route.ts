@@ -18,8 +18,9 @@ export async function POST(req: Request) {
       STRATEGY:
       1. First question: ALWAYS ask about "Living Composition" (alone, couple, family, etc.).
       2. Based on the composition, ask follow-up questions (noise sensitivity, commute, lifestyle rituals, pets, special needs).
-      3. Every response MUST provide 3-4 "Quick Option Buttons".
-      4. When you have enough info (approx 4-6 rounds), set isFinished: true.
+      3. Use "mode": "MULTIPLE" when asking for preferences, amenities, or things that could have multiple answers.
+      4. Every response MUST provide 3-4 "Quick Option Buttons".
+      5. When you have enough info (approx 4-6 rounds), set isFinished: true.
 
       RETURN FORMAT MUST BE JSON:
       {
@@ -32,6 +33,7 @@ export async function POST(req: Request) {
       You are the Interview Navigator for Butler. Your goal is to understand a landlord's ideal tenant profile.
       CRITICAL: All text fields in the JSON response (question, options) MUST be in the language associated with locale: ${locale}.
       Ask about traits, stability, deal-breakers (smoking, pets, altars), etc.
+      Use "mode": "MULTIPLE" for deal-breakers or tenant requirements.
       RETURN FORMAT same as above (must include "mode").
     `;
 

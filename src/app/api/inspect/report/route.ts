@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const session = await auth();
     if (!session) return errorResponse("Unauthorized", 401);
 
-    const { listingId, checklistData, photos, aiSummary } = await req.json();
+    const { listingId, checklistData, photos, aiSummary, digitalHash } = await req.json();
     
     const report = await db.inspectionReport.create({
       data: {
@@ -17,6 +17,7 @@ export async function POST(req: Request) {
         checklistData,
         photos,
         aiSummary,
+        digitalHash,
         status: "COMPLETED",
       },
     });

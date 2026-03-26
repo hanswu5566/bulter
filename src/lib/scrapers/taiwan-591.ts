@@ -132,9 +132,27 @@ export async function scrape591(url: string) {
       }
     });
 
+    // 4. 提取經緯度 (591 常用 lat/lng 或 google map 連結)
+    let lat = null;
+    let lng = null;
+    const latMatch = html.match(/"lat":\s*"?([0-9.]+)"?/);
+    const lngMatch = html.match(/"lng":\s*"?([0-9.]+)"?/);
+    if (latMatch && lngMatch) {
+      lat = parseFloat(latMatch[1]);
+      lng = parseFloat(lngMatch[1]);
+    } else {
+       // 備援：搜尋 google 地圖連結中的經緯度
+       const mapMatch = html.match(/staticmap\?center=([0-9.]+),([0-9.]+)/);
+       if (mapMatch) {
+         lat = parseFloat(mapMatch[1]);
+         lng = parseFloat(mapMatch[2]);
+       }
+    }
+
     // 格式化回傳，對齊 AI Prompt 的標籤
     const combinedContent = `
       MAIN_IMAGE: ${ogImage || "None"}
+      COORDINATES: ${lat}, ${lng}
       PROPERTY_PHOTOS:
       ${uniqueImages.join("\n")}
       
@@ -147,6 +165,8 @@ export async function scrape591(url: string) {
       source: "TW_591" as const,
       url,
       images: uniqueImages,
+      lat,
+      lng
     };
   } catch (error) {
     console.error("591 Scraper error:", error);

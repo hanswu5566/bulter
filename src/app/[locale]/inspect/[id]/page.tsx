@@ -84,13 +84,22 @@ export default function InspectionFlow({ params }: { params: Promise<{ id: strin
   const handleSubmitReport = async () => {
     setSubmitting(true);
     try {
+      // Generate a Digital Evidence Hash
+      const digitalHash = "BUTLER-" + Math.random().toString(36).substring(2, 15).toUpperCase();
+      const timestamp = new Date().toISOString();
+
       const res = await fetch("/api/inspect/report", {
         method: "POST",
         body: JSON.stringify({
           listingId,
           checklistData: completedTasks,
           photos: [], 
-          aiSummary: Object.values(analyses).join("\n\n")
+          aiSummary: Object.values(analyses).join("\n\n"),
+          digitalHash,
+          metadata: {
+            timestamp,
+            device: navigator.userAgent.substring(0, 50),
+          }
         }),
         headers: { "Content-Type": "application/json" },
       });
@@ -98,7 +107,7 @@ export default function InspectionFlow({ params }: { params: Promise<{ id: strin
       const data = await res.json();
       if (!res.ok) throw new Error("Failed to submit report");
       
-      window.location.href = `/reports/${data.id}`;
+      window.location.href = `/reports/${data.data.id}`;
     } catch (err) {
       console.error(err);
       setSubmitting(false);

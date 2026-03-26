@@ -319,10 +319,13 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
             >
               {t('start_inspection')}
             </Link>
-            <button className="w-full border-2 border-primary text-primary py-4 rounded-2xl font-bold hover:bg-primary/5 transition-all flex items-center justify-center gap-2">
+            <Link 
+              href={`/listings/${listing.id}/booking`}
+              className="w-full border-2 border-primary text-primary py-4 rounded-2xl font-bold hover:bg-primary/5 transition-all flex items-center justify-center gap-2"
+            >
               <Calendar className="w-5 h-5" />
               {t('book_viewing')}
-            </button>
+            </Link>
             <p className="text-[10px] text-gray-400 text-center mt-4">
               {t('booking_stats', {count: 12})}
             </p>

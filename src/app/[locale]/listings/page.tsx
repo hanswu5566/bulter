@@ -168,8 +168,8 @@ export default function ListingGallery() {
                   <Marker 
                     key={l.id} 
                     position={{ 
-                      lat: 25.0330 + (Math.random() - 0.5) * 0.05, 
-                      lng: 121.5654 + (Math.random() - 0.5) * 0.05 
+                      lat: l.lat || (25.0330 + (Math.random() - 0.5) * 0.05), 
+                      lng: l.lng || (121.5654 + (Math.random() - 0.5) * 0.05) 
                     }} 
                   />
                 ))}
