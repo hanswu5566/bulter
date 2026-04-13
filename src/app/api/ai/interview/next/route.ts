@@ -1,56 +1,53 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { genAI, MODELS } from "@/lib/ai";
-import { withErrorHandler, successResponse, errorResponse } from "@/lib/api-utils";
+import { withErrorHandler, successResponse, errorResponse, withRateLimit } from "@/lib/api-utils";
+import { ButlerService } from "@/lib/services/butler.service";
+import { getDailyUsage } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   return withErrorHandler(async () => {
-    const session = await auth();
-    if (!session) return errorResponse("Unauthorized", 401);
-
-    const { history = [], role = "TENANT", locale = "zh-TW" } = await req.json();
-    const model = genAI.getGenerativeModel({ model: MODELS.LITE });
-
-    const systemPrompt = role === "TENANT" ? `
-      You are the Interview Navigator for Butler. Your goal is to understand a tenant's lifestyle and housing needs through a detailed conversation.
-      CRITICAL: All text fields in the JSON response (question, options) MUST be in the language associated with locale: ${locale}.
-      
-      STRATEGY:
-      1. First question: ALWAYS ask about "Living Composition" (alone, couple, family, etc.).
-      2. Based on the composition, ask follow-up questions (noise sensitivity, commute, lifestyle rituals, pets, special needs).
-      3. Use "mode": "MULTIPLE" when asking for preferences, amenities, or things that could have multiple answers.
-      4. Every response MUST provide 3-4 "Quick Option Buttons".
-      5. When you have enough info (approx 4-6 rounds), set isFinished: true.
-
-      RETURN FORMAT MUST BE JSON:
-      {
-        "question": "Next question text",
-        "options": ["Option 1", "Option 2", "Option 3"],
-        "mode": "SINGLE" | "MULTIPLE",
-        "isFinished": boolean
+    // 1. Rate Limiting via Redis (15 requests per minute)
+    return withRateLimit(req, "AI_INTERVIEW", 15, 60, async (session) => {
+      // 2. Auth Check (Butler is for members only)
+      if (!session?.user?.id) {
+        return errorResponse("Please login to use Butler.", 401);
       }
-    ` : `
-      You are the Interview Navigator for Butler. Your goal is to understand a landlord's ideal tenant profile.
-      CRITICAL: All text fields in the JSON response (question, options) MUST be in the language associated with locale: ${locale}.
-      Ask about traits, stability, deal-breakers (smoking, pets, altars), etc.
-      Use "mode": "MULTIPLE" for deal-breakers or tenant requirements.
-      RETURN FORMAT same as above (must include "mode").
-    `;
 
-    const prompt = `
-      ${systemPrompt}
-      CURRENT CHAT HISTORY:
-      ${history.map((m: any) => `${m.role}: ${m.content}`).join("\n")}
-      
-      Generate the next guided question.
-    `;
+      const body = await req.json();
+      const userId = session.user.id;
+      const userEmail = session.user.email;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const data = jsonMatch ? JSON.parse(jsonMatch[0]) : { question: "Could you tell me more?", options: [], isFinished: false };
+      // 3. Daily Quota Check (Max 3 messages per day)
+      // Special: Unlimited for specific emails
+      const UNLIMITED_EMAILS = ["hanswu@google.com", "shankesleroux8988@gmail.com"];
+      const isUnlimited = userEmail && UNLIMITED_EMAILS.includes(userEmail);
 
-    return successResponse(data);
+      const usedQuota = await getDailyUsage(userId);
+      const QUOTA_LIMIT = 3;
+
+      if (!isUnlimited && usedQuota >= QUOTA_LIMIT) {
+        return NextResponse.json({
+          success: false,
+          error: "QUOTA_EXCEEDED",
+          message: "You've used your daily 3 messages. Upgrade for more!",
+          quota: { used: usedQuota, limit: QUOTA_LIMIT }
+        }, { status: 403 });
+      }
+
+      // 4. Execute Chat
+      const data = await ButlerService.chat({
+        sessionId: body.sessionId,
+        message: body.message,
+        role: body.role || "TENANT",
+        locale: body.locale || "zh-TW",
+        userId: userId,
+      });
+
+      // 5. Success with quota info
+      return successResponse({
+        ...data,
+        quota: { used: usedQuota + 1, limit: QUOTA_LIMIT }
+      });
+    });
   });
 }
+
+import { NextResponse } from "next/server";

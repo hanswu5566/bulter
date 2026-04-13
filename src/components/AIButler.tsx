@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Loader2, Sparkles, ChevronRight, RotateCcw, LayoutDashboard, Search, FileText, ClipboardCheck, MessageSquarePlus, Check, Lightbulb, ClipboardList } from "lucide-react";
+import { X, Send, Loader2, Sparkles, ChevronRight, RotateCcw, Search, MessageSquarePlus, Check, Lightbulb, ClipboardList, ClipboardCheck } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { usePathname, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -22,6 +22,7 @@ type ButlerView = "MENU" | "DIAGNOSIS" | "OPTIMIZATION" | "INSPECTION" | "INTERV
 export default function AIButler() {
   const { data: session } = useSession();
   const t = useTranslations("AIButler");
+  const commonT = useTranslations("Common");
   const locale = useLocale();
   const pathname = usePathname();
   const params = useParams();
@@ -31,6 +32,8 @@ export default function AIButler() {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string>("");
+  const [quota, setQuota] = useState<{ used: number; limit: number } | null>(null);
   
   // States for Dynamic Interview
   const [suggestedOptions, setSuggestedOptions] = useState<string[]>([]);
@@ -44,6 +47,34 @@ export default function AIButler() {
 
   const role = useMemo(() => (session?.user as any)?.role || "TENANT", [session]);
 
+  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
+
+  // Handle Session Persistence & History Loading
+  useEffect(() => {
+    let sid = localStorage.getItem("butler_session_id");
+    if (!sid) {
+      sid = crypto.randomUUID();
+      localStorage.setItem("butler_session_id", sid);
+    }
+    setSessionId(sid);
+    
+    // Fetch History
+    fetch(`/api/ai/interview/history?sessionId=${sid}`)
+      .then(res => res.json())
+      .then(resData => {
+        if (resData.success && resData.data.messages?.length > 0) {
+          setMessages(resData.data.messages);
+          setIsInterviewFinished(resData.data.isFinished);
+          setView("INTERVIEW");
+        }
+        setIsHistoryLoaded(true);
+      })
+      .catch(err => {
+        console.error("Failed to load Butler history", err);
+        setIsHistoryLoaded(true);
+      });
+  }, []);
+
   // Expose message state for Navbar role-switching check
   useEffect(() => {
     (window as any).__BUTLER_HAS_MESSAGES__ = messages.length > 0;
@@ -52,7 +83,10 @@ export default function AIButler() {
 
   // Reset chat if role changes to prevent context mixup
   useEffect(() => {
-    resetToMenu();
+    // Only reset if we actually have messages and it's not the initial load
+    if (isHistoryLoaded && messages.length > 0) {
+      resetToMenu();
+    }
   }, [role]);
 
   // --- Context Detection ---
@@ -75,8 +109,7 @@ export default function AIButler() {
     };
     window.addEventListener('open-butler', handleOpenButler);
 
-    if (isOpen && messages.length === 0 && view === "MENU") {
-      // 1. Define possible keys for each context
+    if (isOpen && messages.length === 0 && view === "MENU" && isHistoryLoaded) {
       const greetingMap: Record<string, string[]> = {
         LISTING_DETAIL: ['greeting_listing_1', 'greeting_listing_2'],
         LISTING_CREATE: ['greeting_create_1', 'greeting_create_2'],
@@ -84,15 +117,12 @@ export default function AIButler() {
         GENERAL: ['greeting_general_1', 'greeting_general_2', 'greeting_general_3'],
       };
 
-      // 2. Select random key based on current context
       const pool = greetingMap[context] || greetingMap.GENERAL;
       const randomKey = pool[Math.floor(Math.random() * pool.length)];
-      
-      // 3. Set message instantly
       setMessages([{ role: "assistant", content: t(randomKey) }]);
     }
     return () => window.removeEventListener('open-butler', handleOpenButler);
-  }, [isOpen, context, locale, messages.length, view]);
+  }, [isOpen, context, locale, messages.length, view, isHistoryLoaded]);
 
   // --- Actions ---
   const handleAction = async (action: string) => {
@@ -100,7 +130,7 @@ export default function AIButler() {
       setView("INTERVIEW");
       setMessages([]);
       setIsInterviewFinished(false);
-      await nextInterviewStep([]);
+      await nextInterviewStep();
       return;
     }
 
@@ -118,11 +148,8 @@ export default function AIButler() {
         if (resData.success) {
           setDiagnosisData(resData.data);
           setMessages(prev => [...prev, { role: "assistant", content: resData.data.summary }]);
-          
           if (resData.data.butlerInsight) {
-            window.dispatchEvent(new CustomEvent('listing-updated', { 
-              detail: { butlerInsight: resData.data.butlerInsight } 
-            }));
+            window.dispatchEvent(new CustomEvent('listing-updated', { detail: { butlerInsight: resData.data.butlerInsight } }));
           }
         }
       } catch (err) { console.error(err); }
@@ -130,11 +157,9 @@ export default function AIButler() {
     else if (action === "OPTIMIZE") {
       setView("OPTIMIZATION");
       window.dispatchEvent(new CustomEvent('butler-request-data'));
-      
       const handleDataResponse = async (e: any) => {
         window.removeEventListener('butler-data-response', handleDataResponse);
         const listingData = e.detail;
-        
         try {
           const res = await fetch("/api/ai/optimize", {
             method: "POST",
@@ -150,7 +175,6 @@ export default function AIButler() {
         } catch (err) { console.error(err); }
         setLoading(false);
       };
-      
       window.addEventListener('butler-data-response', handleDataResponse);
       return; 
     }
@@ -174,51 +198,42 @@ export default function AIButler() {
     setLoading(false);
   };
 
-  const nextInterviewStep = async (history: any[], currentResponse?: string) => {
+  const nextInterviewStep = async (currentResponse?: string) => {
     setLoading(true);
-    const updatedHistory = currentResponse ? [...history, { role: "user", content: currentResponse }] : history;
-    if (currentResponse) setMessages(updatedHistory);
+    if (currentResponse) {
+      setMessages(prev => [...prev, { role: "user", content: currentResponse }]);
+    }
 
     try {
       const res = await fetch("/api/ai/interview/next", {
         method: "POST",
-        body: JSON.stringify({ history: updatedHistory, role, locale }),
+        body: JSON.stringify({ sessionId, message: currentResponse, role, locale }),
         headers: { "Content-Type": "application/json" },
       });
       const resData = await res.json();
+      
       if (resData.success) {
-        const { question, options, mode, isFinished } = resData.data;
+        const { question, options, mode, isFinished, quota: newQuota } = resData.data;
         setMessages(prev => [...prev, { role: "assistant", content: question }]);
         setSuggestedOptions(options || []);
         setSelectionMode(mode || "SINGLE");
         setMultiSelectItems([]);
         setIsInterviewFinished(isFinished);
-        if (isFinished) saveInterviewResults(updatedHistory);
+        if (newQuota) setQuota(newQuota);
+      } else if (res.status === 429) {
+        setMessages(prev => [...prev, { role: "assistant", content: `⚠️ ${resData.message || "Too many requests. Please slow down."}` }]);
+      } else if (res.status === 403 && resData.error === "QUOTA_EXCEEDED") {
+        if (resData.quota) setQuota(resData.quota);
+        setMessages(prev => [...prev, { role: "assistant", content: `🚫 ${resData.message || "Daily quota exceeded."}` }]);
+      } else if (res.status === 401) {
+        setMessages(prev => [...prev, { role: "assistant", content: `🔒 請先登入會員以使用 Butler 管家服務。` }]);
       }
     } catch (err) { console.error(err); }
     setLoading(false);
   };
 
   const toggleMultiItem = (item: string) => {
-    setMultiSelectItems(prev => 
-      prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]
-    );
-  };
-
-  const saveInterviewResults = async (finalHistory: any[]) => {
-    try {
-      const res = await fetch("/api/ai/intent", {
-        method: "POST",
-        body: JSON.stringify({ messages: finalHistory, locale }),
-        headers: { "Content-Type": "application/json" },
-      });
-      const { tags } = await res.json();
-      await fetch("/api/user/profile", {
-        method: "POST",
-        body: JSON.stringify({ tags }),
-        headers: { "Content-Type": "application/json" },
-      });
-    } catch (err) { console.error(err); }
+    setMultiSelectItems(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]);
   };
 
   const resetToMenu = () => {
@@ -227,6 +242,9 @@ export default function AIButler() {
     setSuggestedOptions([]);
     setMultiSelectItems([]);
     setIsInterviewFinished(false);
+    const sid = crypto.randomUUID();
+    setSessionId(sid);
+    localStorage.setItem("butler_session_id", sid);
   };
 
   return (
@@ -268,11 +286,9 @@ export default function AIButler() {
                     return (
                       <button 
                         key={`${idx}-${optValue}`} 
-                        onClick={() => selectionMode === "SINGLE" ? nextInterviewStep(messages, optValue) : toggleMultiItem(optValue)} 
+                        onClick={() => selectionMode === "SINGLE" ? nextInterviewStep(optValue) : toggleMultiItem(optValue)} 
                         className={`px-3 py-1.5 rounded-full border text-[11px] font-bold transition-all shadow-sm flex items-center gap-1 ${
-                          isSelected 
-                            ? 'bg-primary border-primary text-white' 
-                            : 'bg-white border-primary/20 text-primary hover:bg-primary/5'
+                          isSelected ? 'bg-primary border-primary text-white' : 'bg-white border-primary/20 text-primary hover:bg-primary/5'
                         }`}
                       >
                         {isSelected && <Check className="w-2.5 h-2.5" />}
@@ -282,21 +298,39 @@ export default function AIButler() {
                   })}
                 </div>
               )}
-
               {loading && <div className="flex justify-start"><div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-50"><Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /></div></div>}
             </div>
 
             <div className="p-4 bg-white border-t border-gray-100">
+              {quota && !["hanswu@google.com", "shankesleroux8988@gmail.com"].includes(session?.user?.email || "") && (
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Daily Quota</div>
+                  <div className={`text-[10px] font-black ${quota.used >= quota.limit ? 'text-red-500' : 'text-primary'}`}>
+                    {quota.used} / {quota.limit}
+                  </div>
+                </div>
+              )}
+
               {view === "INTERVIEW" ? (
                 <div className="space-y-3">
                   {!isInterviewFinished ? (
                     <div className="flex gap-2">
-                      <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (nextInterviewStep(messages, (selectionMode === "MULTIPLE" && multiSelectItems.length > 0) ? [...multiSelectItems, ...(input.trim() ? [input.trim()] : [])].join("、") : input), setInput(""))} placeholder={t('input_placeholder')} className="flex-1 bg-gray-50 border-none rounded-xl px-4 py-2.5 text-[13px] focus:ring-1 focus:ring-primary outline-none" />
-                      
+                      <input 
+                        type="text" 
+                        value={input} 
+                        onChange={(e) => setInput(e.target.value)} 
+                        disabled={quota !== null && quota.used >= quota.limit}
+                        onKeyDown={(e) => e.key === "Enter" && (nextInterviewStep((selectionMode === "MULTIPLE" && multiSelectItems.length > 0) ? [...multiSelectItems, ...(input.trim() ? [input.trim()] : [])].join("、") : input), setInput(""))} 
+                        placeholder={quota !== null && quota.used >= quota.limit ? "今日額度已用完" : t('input_placeholder')} 
+                        className="flex-1 bg-gray-50 border-none rounded-xl px-4 py-2.5 text-[13px] focus:ring-1 focus:ring-primary outline-none disabled:opacity-50" 
+                      />
                       {selectionMode === "MULTIPLE" && (multiSelectItems.length > 0 || input.trim() !== "") ? (
-                        <button onClick={() => { nextInterviewStep(messages, [...multiSelectItems, ...(input.trim() ? [input.trim()] : [])].join("、")); setInput(""); }} className="bg-success text-white px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold"><Check className="w-3.5 h-3.5" /> {t('btn_confirm_selection')}</button>
+                        <button onClick={() => { nextInterviewStep([...multiSelectItems, ...(input.trim() ? [input.trim()] : [])].join("、")); setInput(""); }} className={`px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold text-white transition-colors ${input.trim() !== "" ? 'bg-primary' : 'bg-success'}`}>
+                          {input.trim() !== "" ? <Send className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
+                          {input.trim() !== "" ? commonT('send') : t('btn_confirm_selection')}
+                        </button>
                       ) : (
-                        <button onClick={() => { nextInterviewStep(messages, input); setInput(""); }} className="bg-primary text-white p-2.5 rounded-xl"><Send className="w-5 h-5" /></button>
+                        <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => { nextInterviewStep(input); setInput(""); }} className="bg-primary text-white p-2.5 rounded-xl disabled:opacity-50"><Send className="w-5 h-5" /></button>
                       )}
                     </div>
                   ) : (
@@ -305,9 +339,8 @@ export default function AIButler() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {/* --- Primary Contextual Action --- */}
                   {context === "LISTING_DETAIL" && (
-                    <button onClick={() => handleAction("DIAGNOSE")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10">
+                    <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => handleAction("DIAGNOSE")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10 disabled:opacity-50">
                       <Sparkles className="absolute -right-2 -top-2 w-16 h-16 opacity-10 rotate-12" />
                       <div className="flex items-center gap-3 relative z-10">
                         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
@@ -321,9 +354,8 @@ export default function AIButler() {
                       </div>
                     </button>
                   )}
-
                   {context === "LISTING_CREATE" && (
-                    <button onClick={() => handleAction("OPTIMIZE")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10">
+                    <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => handleAction("OPTIMIZE")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10 disabled:opacity-50">
                       <Lightbulb className="absolute -right-2 -top-2 w-16 h-16 opacity-10 rotate-12" />
                       <div className="flex items-center gap-3 relative z-10">
                         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
@@ -337,9 +369,8 @@ export default function AIButler() {
                       </div>
                     </button>
                   )}
-
                   {context === "INSPECTION" && (
-                    <button onClick={() => handleAction("INSPECT")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10">
+                    <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => handleAction("INSPECT")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10 disabled:opacity-50">
                       <ClipboardList className="absolute -right-2 -top-2 w-16 h-16 opacity-10 rotate-12" />
                       <div className="flex items-center gap-3 relative z-10">
                         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
@@ -353,31 +384,22 @@ export default function AIButler() {
                       </div>
                     </button>
                   )}
-
-                  {/* --- Secondary Action (Interview) --- */}
                   <button 
+                    disabled={quota !== null && quota.used >= quota.limit}
                     onClick={() => handleAction("START_INTERVIEW")} 
-                    className={`w-full text-left transition-all group relative overflow-hidden ${
-                      context === "GENERAL" 
-                        ? 'p-4 rounded-[1.5rem] bg-primary text-white shadow-lg' 
-                        : 'p-3 rounded-xl bg-gray-50 text-gray-400 hover:bg-gray-100'
+                    className={`w-full text-left transition-all group relative overflow-hidden disabled:opacity-50 ${
+                      context === "GENERAL" ? 'p-4 rounded-[1.5rem] bg-primary text-white shadow-lg' : 'p-3 rounded-xl bg-gray-50 text-gray-400 hover:bg-gray-100'
                     }`}
                   >
                     <div className="flex items-center gap-3 relative z-10">
-                      <div className={`rounded-lg flex items-center justify-center ${
-                        context === "GENERAL" 
-                          ? 'w-10 h-10 bg-white/20 backdrop-blur-md' 
-                          : 'w-8 h-8 bg-white border border-gray-100 shadow-sm'
-                      }`}>
+                      <div className={`rounded-lg flex items-center justify-center ${context === "GENERAL" ? 'w-10 h-10 bg-white/20 backdrop-blur-md' : 'w-8 h-8 bg-white border border-gray-100 shadow-sm'}`}>
                         <MessageSquarePlus className={`w-4 h-4 ${context === "GENERAL" ? 'text-white' : 'text-gray-400 group-hover:text-primary'}`} />
                       </div>
                       <div className="flex-1">
                         <div className={`font-bold ${context === "GENERAL" ? 'text-sm' : 'text-[11px]'}`}>
                           {role === "TENANT" ? t('action_interview_tenant') : t('action_interview_landlord')}
                         </div>
-                        {context === "GENERAL" && (
-                          <div className="text-[9px] opacity-70">獲取精準推薦</div>
-                        )}
+                        {context === "GENERAL" && <div className="text-[9px] opacity-70">獲取精準推薦</div>}
                       </div>
                       <ChevronRight className={`opacity-40 group-hover:translate-x-0.5 transition-transform ${context === "GENERAL" ? 'w-4 h-4' : 'w-3 h-3'}`} />
                     </div>

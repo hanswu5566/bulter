@@ -9,6 +9,42 @@ export const MODELS = {
   LITE: "gemini-3.1-flash-lite-preview", // Ultra-fast Lite
 };
 
+// --- Agent Tools Definition ---
+export const BUTLER_TOOLS = [
+  {
+    function_declarations: [
+      {
+        name: "update_user_tags",
+        description: "Update the user's lifestyle preferences, budget, or property requirements in the database. Use this as soon as the user expresses a preference.",
+        parameters: {
+          type: "object",
+          properties: {
+            tags: {
+              type: "object",
+              description: "Structured tags representing user needs. Example: { budget: 20000, region: 'Taipei', pets: true, quietness: 5 }",
+            },
+          },
+          required: ["tags"],
+        },
+      },
+      {
+        name: "finalize_interview",
+        description: "Call this tool when the interview is complete and enough information has been collected to provide accurate recommendations.",
+        parameters: {
+          type: "object",
+          properties: {
+            summary: {
+              type: "string",
+              description: "A short closing summary of what was learned about the user.",
+            },
+          },
+          required: ["summary"],
+        },
+      },
+    ],
+  },
+];
+
 /**
  * Helper to sleep for a given duration
  */

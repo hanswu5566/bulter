@@ -179,3 +179,41 @@ model IoTDevice {
   lastHeartbeat DateTime
   status        String   // "NORMAL", "ALERT"
 }
+
+// --- AI & Protection (Shield) ---
+model RateLimit {
+  id          String   @id @default(cuid())
+  identifier  String   // User ID or IP
+  action      String   // e.g., "AI_CHAT"
+  timestamp   DateTime @default(now())
+
+  @@index([identifier, action, timestamp])
+}
+
+model AiConversation {
+  id          String      @id @default(cuid())
+  userId      String?
+  sessionId   String      @unique // Client-side generated UUID
+  role        UserRole    @default(TENANT)
+  currentStep Int         @default(0) // 0: Start, 1: Budget, 2: Region, etc.
+  summary     String?     @db.Text
+  messages    AiMessage[]
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([sessionId])
+}
+
+model AiMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String         // "user" | "assistant" | "system" | "tool"
+  content        String         @db.Text
+  toolCalls      Json?          // If the assistant called a tool
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId])
+}

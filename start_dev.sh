@@ -23,7 +23,7 @@ source .env
 set +a
 
 # 3. Define mandatory variables
-MANDATORY_VARS=("DATABASE_URL" "NEXTAUTH_SECRET" "GOOGLE_CLIENT_ID" "GOOGLE_CLIENT_SECRET" "GEMINI_API_KEY")
+MANDATORY_VARS=("DATABASE_URL" "REDIS_URL" "NEXTAUTH_SECRET" "GOOGLE_CLIENT_ID" "GOOGLE_CLIENT_SECRET" "GEMINI_API_KEY")
 for VAR in "${MANDATORY_VARS[@]}"; do
     if [ -z "${!VAR}" ]; then
         echo "   - Missing: $VAR"
@@ -33,11 +33,20 @@ done
 
 echo "✅ Environment variables verified."
 
-# 4. Prisma Generate
-echo "🛠 Generating Prisma Client..."
-npx prisma generate
+# 4. Prisma Generate & Sync
+echo "🛠 Generating Prisma Client & Syncing DB..."
+if command -v bun >/dev/null 2>&1; then
+    bun prisma generate
+    bun prisma db push --accept-data-loss
+else
+    npx prisma generate
+    npx prisma db push --accept-data-loss
+fi
 
-# 5. Start Dev Server (Disable Turbopack if SWC issues persist)
+# 5. Start Dev Server
 echo "🔥 Starting AI House Rent Dev Server..."
-# 在 Google 環境下，有時關掉 --turbo 會更穩定
-npm run dev
+if command -v bun >/dev/null 2>&1; then
+    bun dev
+else
+    npm run dev
+fi

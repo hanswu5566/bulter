@@ -1,4 +1,10 @@
 {
+  "Common": {
+    "confirm": "確定",
+    "cancel": "キャンセル",
+    "warning": "警告",
+    "send": "送信"
+  },
   "Navbar": {
     "brand_name": "Butler.",
     "brand_subtitle": "AI賃貸バトラー",

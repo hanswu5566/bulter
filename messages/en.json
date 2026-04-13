@@ -1,4 +1,10 @@
 {
+  "Common": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "warning": "Warning",
+    "send": "Send"
+  },
   "Navbar": {
     "brand_name": "Butler.",
     "brand_subtitle": "AI Rental Concierge",

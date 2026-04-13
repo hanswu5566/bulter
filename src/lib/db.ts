@@ -6,9 +6,14 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const connectionString = process.env.DATABASE_URL;
+// Optimization: Adjust pool settings for higher concurrency
+const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  max: 20, // Max number of clients in the pool
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
 
-const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 
 export const db =
@@ -17,5 +22,7 @@ export const db =
     adapter,
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
+
+export const prisma = db; // Export both for compatibility
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;

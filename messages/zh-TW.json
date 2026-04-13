@@ -1,4 +1,10 @@
 {
+  "Common": {
+    "confirm": "確定",
+    "cancel": "取消",
+    "warning": "警告",
+    "send": "送出"
+  },
   "Navbar": {
     "brand_name": "Butler.",
     "brand_subtitle": "智慧租屋管家",

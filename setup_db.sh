@@ -20,13 +20,32 @@ fi
 # 2. Kill existing if exists
 $DOCKER_CMD rm -f $CONTAINER_NAME >/dev/null 2>&1
 
-# 3. Start New Container
+# 3. Start New Containers
 echo "🚀 Starting new PostgreSQL container on port $DB_PORT..."
 $DOCKER_CMD run --name $CONTAINER_NAME -e POSTGRES_PASSWORD=$DB_PASSWORD -e POSTGRES_DB=$DB_NAME -p $DB_PORT:5432 -d postgres
 
+REDIS_CONTAINER="butler-redis"
+echo "🔴 Starting new Redis container on port 6379..."
+$DOCKER_CMD rm -f $REDIS_CONTAINER >/dev/null 2>&1
+$DOCKER_CMD run --name $REDIS_CONTAINER -p 6379:6379 -d redis:alpine
+
 # 4. Wait
-echo "⏳ Waiting for database to be ready..."
+echo "⏳ Waiting for services to be ready..."
 sleep 5
 
-echo "✅ Database is ready on port $DB_PORT!"
-echo "Please ensure .env has: DATABASE_URL=\"postgresql://$DB_USER:$DB_PASSWORD@localhost:$DB_PORT/$DB_NAME\""
+# 5. Sync Prisma Schema
+echo "🛠 Synchronizing Prisma Schema..."
+export DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:$DB_PORT/$DB_NAME"
+
+if command -v bun >/dev/null 2>&1; then
+    bun prisma generate
+    bun prisma db push --accept-data-loss
+else
+    npx prisma generate
+    npx prisma db push --accept-data-loss
+fi
+
+echo "✅ Infrastructure is ready!"
+echo "Please ensure .env has:"
+echo "DATABASE_URL=\"postgresql://$DB_USER:$DB_PASSWORD@localhost:$DB_PORT/$DB_NAME\""
+echo "REDIS_URL=\"redis://localhost:6379\""
