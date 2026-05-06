@@ -25,16 +25,15 @@ model User {
   
   // 核心畫像數據 (Spec 01)
   baseProfile   Json?     // 基礎資料: { "phone": string, "occupation": string, "language": string }
-  aiTags        Json?     // Butler 提取的生活標籤: { "quietness": 5, "laundry": "daily", "pets": false }
+  aiTags        Json?     // Butler 提取的生活標籤: { "tags": string[], "tagsWithWeight": { "tag": weight } }
   trustSummary  String?   @db.Text // AI 生成的信用推薦語
   
   accounts      Account[]
   sessions      Session[]
   listings      Listing[] @relation("LandlordListings")
   reports       InspectionReport[]
-  messages      ChatMessage[]
   appointments  Appointment[]
-  chatSessions  ChatSession[]
+  listingStatuses UserListingStatus[]
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -74,28 +73,46 @@ model Listing {
   address       String
   price         Int
   currency      String    @default("TWD") // TWD, JPY
+  isExpired     Boolean   @default(false) // 是否已下架
   images        String[]  // Array of GCS paths
   lat           Float?
   lng           Float?
   
   // 市場與設施標籤 (Spec 02)
   marketTags    Json?     // TW: { rent_subsidy: bool, ... }, JP: { reikin: int, ... }
-  features      Json?     // 設施屬性: { elevator: bool, balcony: bool, appliances: string[] }
+  features      Json?     // 設施屬性: { elevator: bool, balcony: bool, appliances: string[], atmosphereTags: string[] }
   
   // 遷移與 AI 分析
   sourceUrl     String?   @unique
   rawScrapedData Json?    
   butlerInsight Json?     // AI 生成的亮點、風險與 Match Score 參考
+  embedding     Unsupported("vector(768)")?
   
-  landlordId    String
-  landlord      User      @relation("LandlordListings", fields: [landlordId], references: [id])
+  landlordId    String?
+  landlord      User?     @relation("LandlordListings", fields: [landlordId], references: [id])
   
   reports       InspectionReport[]
   appointments  Appointment[]
-  chatSessions  ChatSession[]
+  userStatuses  UserListingStatus[]
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model UserListingStatus {
+  id        String   @id @default(cuid())
+  userId    String
+  listingId String
+  isRemoved Boolean  @default(false) // 是否被用戶移除（隱藏）
+  isSaved   Boolean  @default(false) // 是否被用戶收藏
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, listingId])
 }
 
 enum BookingStatus {
@@ -136,7 +153,6 @@ model InspectionReport {
   checklistData Json?       // 結構化事實紀錄
   photos        String[]    // 異常存證照片路徑
   aiSummary     String?     @db.Text // Gemini 生成的實勘總結
-  digitalHash   String?     // 防偽雜湊值
   
   status        String      @default("IN_PROGRESS")
   
@@ -144,25 +160,7 @@ model InspectionReport {
   updatedAt     DateTime    @updatedAt
 }
 
-model ChatSession {
-  id          String        @id @default(cuid())
-  listingId   String
-  listing     Listing       @relation(fields: [listingId], references: [id])
-  users       User[]
-  messages    ChatMessage[]
-  createdAt   DateTime      @default(now())
-}
 
-model ChatMessage {
-  id                String      @id @default(cuid())
-  sessionId         String
-  session           ChatSession @relation(fields: [sessionId], references: [id])
-  senderId          String
-  sender            User        @relation(fields: [senderId], references: [id])
-  content           String      @db.Text
-  translatedContent Json?       // { "en": "...", "ja": "..." }
-  createdAt         DateTime    @default(now())
-}
 
 model VerificationToken {
   identifier String
@@ -172,13 +170,7 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model IoTDevice {
-  id            String   @id @default(cuid())
-  listingId     String
-  type          String   // "ELECTRIC_METER", "MOTION_SENSOR"
-  lastHeartbeat DateTime
-  status        String   // "NORMAL", "ALERT"
-}
+
 
 // --- AI & Protection (Shield) ---
 model RateLimit {

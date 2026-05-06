@@ -1,0 +1,12 @@
+$ next dev -p 7788
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:7788
+- Network:       http://172.17.55.123:7788
+- Environments: .env
+
+✓ Starting...
+  Using external babel configuration from /usr/local/google/home/hanswu/Codes/ai-house-rent/.babelrc
+⚠ It looks like there is a custom Babel configuration that can be removed.
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+✓ Ready in 2.9s
+[?25h

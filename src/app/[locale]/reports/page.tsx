@@ -114,10 +114,10 @@ export default function ReportsList() {
             <h3 className="text-xl font-bold text-on-surface mb-2">尚無實勘報告</h3>
             <p className="text-gray-400 text-sm mb-8">當您完成房源實地檢查後，管家的分析報告會出現在這裡。</p>
             <Link 
-              href="/listings"
+              href="/"
               className="inline-flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
             >
-              去探索房源
+              去透視房源
             </Link>
           </div>
         )}

@@ -70,8 +70,8 @@ export async function uploadFromUrl(url: string) {
     
     // --- 圖片最佳化處理 ---
     const optimizedBuffer = await sharp(originalBuffer)
-      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 80 })
+      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 90 })
       .toBuffer();
     
     const fileName = `imports/${Date.now()}-${Math.random().toString(36).substring(7)}.webp`;

@@ -1,105 +1,100 @@
 "use client";
 
-import { useState, useRef, use } from "react";
+import { useState, use, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  House, Camera, Check, ChevronRight, 
-  Volume2, Droplets, ShieldAlert, Loader2
+  Check, ChevronRight, Volume2, Droplets, 
+  ShieldAlert, Loader2, MessageSquare, ArrowLeft, 
+  Sparkles, ListChecks, Info
 } from "lucide-react";
-import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Link, useRouter } from "@/i18n/routing";
 
 const SCENARIOS = [
   {
     id: "noise",
-    title: "安穩睡眠場景",
-    description: "關閉所有音響，安靜觀察 30 秒。觀察窗外車流或隔壁噪音。",
+    title: "安穩睡眠與隱私",
+    description: "安靜觀察 30 秒。觀察窗外車流、鄰居走動或隔壁噪音。",
     icon: Volume2,
-    tasks: ["外部噪音觀察", "窗戶氣密觀察", "空調品質驗證"]
+    tasks: ["外部交通噪音", "隔音牆/氣密窗品質", "鄰居進出聲量"]
   },
   {
     id: "water",
-    title: "衛浴廚食場景",
-    description: "同時開啟多處水龍頭，觀察水流壓力與熱水切換速度。",
+    title: "水電機能與結構",
+    description: "同時開啟水龍頭，觀察水流壓力、排水速度與漏水痕跡。",
     icon: Droplets,
-    tasks: ["水壓與冷熱切換", "隱藏瑕疵掃描", "排水與異味"]
+    tasks: ["冷熱水壓與流速", "天花板/牆角水漬痕跡", "排水孔是否通暢", "插座數量與位置"]
   },
   {
     id: "safety",
-    title: "安全健康紅線",
-    description: "檢查消防設備與熱水器安裝位置是否符合安全規範。",
+    title: "安全設施與動線",
+    description: "檢查消防設備是否過期，以及逃生動線是否通暢。",
     icon: ShieldAlert,
-    tasks: ["消防設施點名", "熱水器安裝安全"]
+    tasks: ["滅火器與偵煙器", "逃生出口/後陽台通暢", "門鎖品質與安全"]
   }
 ];
 
 export default function InspectionFlow({ params }: { params: Promise<{ id: string }> }) {
   const { id: listingId } = use(params);
   const t = useTranslations("Inspection");
+  const router = useRouter();
   const [activeScenario, setActiveScenario] = useState<number | null>(null);
-  const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>({});
-  const [analyses, setAnalyses] = useState<Record<string, string>>({});
-  const [analyzingTask, setAnalyzingTask] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const currentScenario = activeScenario !== null ? SCENARIOS[activeScenario] : null;
-
-  const toggleTask = (taskId: string) => {
-    setCompletedTasks(prev => ({ ...prev, [taskId]: !prev[taskId] }));
-  };
-
+  const [taskData, setTaskData] = useState<Record<string, { checked: boolean, note: string }>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [aiPoints, setAiPoints] = useState<any[]>([]);
+  const [loadingAi, setLoadingAi] = useState(true);
 
-  const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>, task: string) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  useEffect(() => {
+    fetch("/api/ai/inspect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ listingId })
+    })
+      .then(res => res.json())
+      .then(res => {
+        if (res.success && res.data?.points) {
+          setAiPoints(res.data.points);
+        }
+        setLoadingAi(false);
+      })
+      .catch(err => {
+        console.error("Failed to fetch AI inspection points", err);
+        setLoadingAi(false);
+      });
+  }, [listingId]);
 
-    setAnalyzingTask(task);
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = async () => {
-      try {
-        const res = await fetch("/api/inspect/analyze", {
-          method: "POST",
-          body: JSON.stringify({
-            image: reader.result as string,
-            taskName: task
-          }),
-          headers: { "Content-Type": "application/json" }
-        });
-
-        if (!res.ok) throw new Error("Analysis failed");
-        
-        const { analysis } = await res.json();
-        setAnalyses(prev => ({ ...prev, [task]: analysis }));
-        setCompletedTasks(prev => ({ ...prev, [task]: true }));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setAnalyzingTask(null);
+  const toggleTask = (task: string) => {
+    setTaskData(prev => ({
+      ...prev,
+      [task]: { 
+        checked: !prev[task]?.checked, 
+        note: prev[task]?.note || "" 
       }
-    };
+    }));
   };
+
+  const updateNote = (task: string, note: string) => {
+    setTaskData(prev => ({
+      ...prev,
+      [task]: { 
+        checked: prev[task]?.checked || false, 
+        note 
+      }
+    }));
+  };
+
+  const currentScenario = activeScenario !== null ? SCENARIOS[activeScenario] : null;
 
   const handleSubmitReport = async () => {
     setSubmitting(true);
     try {
-      // Generate a Digital Evidence Hash
-      const digitalHash = "BUTLER-" + Math.random().toString(36).substring(2, 15).toUpperCase();
-      const timestamp = new Date().toISOString();
-
       const res = await fetch("/api/inspect/report", {
         method: "POST",
         body: JSON.stringify({
           listingId,
-          checklistData: completedTasks,
-          photos: [], 
-          aiSummary: Object.values(analyses).join("\n\n"),
-          digitalHash,
-          metadata: {
-            timestamp,
-            device: navigator.userAgent.substring(0, 50),
-          }
+          checklistData: taskData,
+          aiSummary: "使用者手動檢查紀錄",
+          status: "COMPLETED"
         }),
         headers: { "Content-Type": "application/json" },
       });
@@ -107,7 +102,7 @@ export default function InspectionFlow({ params }: { params: Promise<{ id: strin
       const data = await res.json();
       if (!res.ok) throw new Error("Failed to submit report");
       
-      window.location.href = `/reports/${data.data.id}`;
+      router.push(`/reports`);
     } catch (err) {
       console.error(err);
       setSubmitting(false);
@@ -115,43 +110,88 @@ export default function InspectionFlow({ params }: { params: Promise<{ id: strin
   };
 
   return (
-    <div className="fixed inset-0 bg-surface z-[1000] overflow-y-auto font-sans">
-      <div className="max-w-md mx-auto min-h-screen flex flex-col p-6">
+    <div className="min-h-screen bg-surface font-sans pb-24">
+      <div className="max-w-md mx-auto p-6">
+        
+        {/* Header */}
+        <header className="mb-8 flex items-center justify-between">
+          <Link href={`/listings/${listingId}`} className="p-2 -ml-2 text-gray-400 hover:text-on-surface">
+            <ArrowLeft className="w-6 h-6" />
+          </Link>
+          <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full">
+            <Sparkles className="w-3 h-3 text-primary" />
+            <span className="text-[10px] font-black text-primary uppercase tracking-widest">Butler Guide</span>
+          </div>
+        </header>
+
         {!currentScenario ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <h1 className="text-2xl font-bold mb-2">{t('title')}</h1>
-            <p className="text-gray-600 mb-8">{t('tagline')}</p>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <h1 className="text-3xl font-black text-on-surface mb-2">實地看房導引</h1>
+            <p className="text-gray-500 text-sm mb-12">請隨我的引導檢查細節，這能幫助您在多個候選房源中做出最理性的選擇。</p>
             
+            {/* Butler AI Dynamic Guide Points */}
+            {aiPoints.length > 0 && (
+              <div className="bg-primary/5 border-2 border-primary/20 p-6 rounded-[2rem] mb-8 space-y-4">
+                <div className="flex items-center gap-2.5 text-primary">
+                  <Sparkles className="w-5 h-5" />
+                  <h3 className="font-black text-base">💡 Butler 管家現場特別叮嚀</h3>
+                </div>
+                <div className="space-y-3 text-sm text-on-surface">
+                  {aiPoints.map((point: any, idx: number) => (
+                    <div key={idx} className="bg-white p-4 rounded-xl border border-primary/10 shadow-sm leading-relaxed">
+                      <span className="font-black text-primary mr-1">#{idx + 1} {point.title}：</span>
+                      <span className="text-gray-600">{point.advice}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
-              {SCENARIOS.map((s, idx) => (
-                <button
-                  key={s.id}
-                  onClick={() => setActiveScenario(idx)}
-                  className="w-full butler-card flex items-center gap-4 text-left group hover:border-primary transition-all"
-                >
-                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
-                    <s.icon className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold">{s.title}</h3>
-                    <p className="text-xs text-gray-500">{t('points_count', {count: s.tasks.length})}</p>
-                  </div>
-                  <ChevronRight className="text-gray-300 w-5 h-5" />
-                </button>
-              ))}
+              {SCENARIOS.map((s, idx) => {
+                const completedCount = s.tasks.filter(t => taskData[t]?.checked).length;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setActiveScenario(idx)}
+                    className="w-full bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-5 text-left group hover:border-primary/30 transition-all"
+                  >
+                    <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                      <s.icon className="w-7 h-7" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-black text-on-surface">{s.title}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden max-w-[60px]">
+                           <div 
+                             className="h-full bg-primary transition-all duration-500" 
+                             style={{ width: `${(completedCount / s.tasks.length) * 100}%` }}
+                           />
+                        </div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">{completedCount}/{s.tasks.length} 已確認</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="text-gray-200 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                );
+              })}
             </div>
 
-            <button 
-              onClick={handleSubmitReport}
-              disabled={submitting}
-              className="w-full bg-primary text-white py-4 rounded-2xl font-bold mt-12 shadow-lg flex items-center justify-center gap-2"
-            >
-              {submitting && <Loader2 className="w-5 h-5 animate-spin" />}
-              {t('finish_report')}
-            </button>
+            <div className="mt-12 bg-on-surface p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
+               <div className="relative z-10">
+                 <h4 className="font-bold text-lg mb-2">檢查完畢？</h4>
+                 <p className="text-xs text-gray-400 mb-8 leading-relaxed">您的紀錄將存入「決策清單」，我們會根據現場事實動態調整房源的最終評分。</p>
+                 <button 
+                  onClick={handleSubmitReport}
+                  disabled={submitting || Object.keys(taskData).length === 0}
+                  className="w-full bg-primary text-white py-4 rounded-2xl font-black shadow-lg flex items-center justify-center gap-2 disabled:opacity-30 active:scale-95 transition-all"
+                >
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ListChecks className="w-5 h-5" />}
+                  完成紀錄並產生報告
+                </button>
+               </div>
+               <Sparkles className="absolute -bottom-8 -right-8 w-32 h-32 text-primary opacity-20" />
+            </div>
           </motion.div>
         ) : (
           <AnimatePresence mode="wait">
@@ -160,89 +200,66 @@ export default function InspectionFlow({ params }: { params: Promise<{ id: strin
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col"
+              className="space-y-8"
             >
               <div className="mb-8">
-                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-4">
+                <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center text-primary mb-6 shadow-sm">
                   <currentScenario.icon className="w-8 h-8" />
                 </div>
-                <h2 className="text-3xl font-bold mb-2">{currentScenario.title}</h2>
-                <p className="text-gray-600">{currentScenario.description}</p>
+                <h2 className="text-3xl font-black text-on-surface mb-2">{currentScenario.title}</h2>
+                <p className="text-gray-500 text-sm leading-relaxed">{currentScenario.description}</p>
               </div>
 
-              <div className="space-y-4 flex-1">
+              <div className="space-y-6">
                 {currentScenario.tasks.map((task) => (
-                  <div key={task} className="space-y-2">
-                    <div className="p-4 rounded-2xl border-2 border-gray-100 bg-white flex flex-col gap-4">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-on-surface">{task}</span>
-                        {analyzingTask === task && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+                  <div key={task} className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+                    <div 
+                      onClick={() => toggleTask(task)}
+                      className="p-6 flex items-center gap-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                    >
+                      <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                        taskData[task]?.checked ? "bg-primary border-primary" : "border-gray-200"
+                      }`}>
+                        {taskData[task]?.checked && <Check className="w-4 h-4 text-white" />}
                       </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <button 
-                          onClick={() => setCompletedTasks(prev => ({ ...prev, [task]: true }))}
-                          className={`py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                            completedTasks[task] === true && !analyses[task]
-                              ? "bg-success text-white" 
-                              : "bg-gray-50 text-gray-500 hover:bg-success/10 hover:text-success"
-                          }`}
-                        >
-                          <Check className="w-4 h-4" />
-                          正常
-                        </button>
-                        <button 
-                          onClick={() => {
-                            fileInputRef.current?.click();
-                            (fileInputRef.current as any).task = task;
-                          }}
-                          className={`py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                            analyses[task]
-                              ? "bg-primary text-white" 
-                              : "bg-gray-50 text-gray-500 hover:bg-primary/10 hover:text-primary"
-                          }`}
-                        >
-                          <Camera className="w-4 h-4" />
-                          有疑慮
-                        </button>
-                      </div>
+                      <span className={`font-bold flex-1 ${taskData[task]?.checked ? "text-on-surface" : "text-gray-400"}`}>
+                        {task}
+                      </span>
                     </div>
                     
-                    {analyses[task] && (
-                      <div className="bg-primary/5 p-4 rounded-2xl text-xs text-gray-700 border border-primary/20 relative">
-                        <div className="font-black text-primary uppercase tracking-tighter mb-1 flex items-center gap-1">
-                          <ShieldAlert className="w-3 h-3" />
-                          管家存證分析
+                    <div className="px-6 pb-6">
+                      <div className="relative group">
+                        <div className="absolute left-4 top-4 text-gray-300">
+                          <MessageSquare className="w-4 h-4" />
                         </div>
-                        {analyses[task]}
-                        <div className="mt-2 text-[10px] text-gray-400">時戳與 GPS 已加密存證</div>
+                        <textarea
+                          placeholder="點擊紀錄現場細節或備註..."
+                          value={taskData[task]?.note || ""}
+                          onChange={(e) => updateNote(task, e.target.value)}
+                          className="w-full bg-gray-50 border-none rounded-2xl py-4 pl-12 pr-4 text-sm focus:ring-2 focus:ring-primary/20 min-h-[80px] resize-none text-on-surface"
+                        />
                       </div>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>
 
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*" 
-                capture="environment"
-                onChange={(e) => handleCapture(e, (fileInputRef.current as any).task)}
-              />
-
-              <div className="mt-8 flex gap-4">
+              <div className="fixed bottom-0 left-0 right-0 p-6 bg-surface/80 backdrop-blur-xl border-t border-gray-100 flex gap-4">
                 <button 
                   onClick={() => setActiveScenario(null)}
-                  className="flex-1 border-2 border-primary text-primary py-4 rounded-2xl font-bold"
+                  className="flex-1 bg-white border border-gray-200 text-on-surface py-4 rounded-2xl font-black active:scale-95 transition-all shadow-sm"
                 >
-                  {t('back')}
+                  回總表
                 </button>
                 <button 
-                  onClick={() => setActiveScenario(null)}
-                  className="flex-1 bg-primary text-white py-4 rounded-2xl font-bold shadow-md"
+                  onClick={() => {
+                    const nextIdx = (activeScenario ?? 0) + 1;
+                    if (nextIdx < SCENARIOS.length) setActiveScenario(nextIdx);
+                    else setActiveScenario(null);
+                  }}
+                  className="flex-1 bg-primary text-white py-4 rounded-2xl font-black shadow-lg active:scale-95 transition-all shadow-primary/20"
                 >
-                  {t('next')}
+                  下一組項目
                 </button>
               </div>
             </motion.div>

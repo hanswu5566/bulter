@@ -18,7 +18,16 @@ export async function POST(req: Request) {
       select: { aiTags: true }
     });
     
-    const userTags = (user?.aiTags as string[]) || [];
+    const rawPrefs = (user?.aiTags as any) || {};
+    const userTags: string[] = [];
+    if (rawPrefs.budgetMax) userTags.push(`預算 ${rawPrefs.budgetMax} 元以下`);
+    if (rawPrefs.budgetMin) userTags.push(`預算 ${rawPrefs.budgetMin} 元以上`);
+    if (rawPrefs.regions && Array.isArray(rawPrefs.regions)) {
+      rawPrefs.regions.forEach((r: string) => userTags.push(`希望在 ${r}`));
+    }
+    if (rawPrefs.lifestyleTags && Array.isArray(rawPrefs.lifestyleTags)) {
+      rawPrefs.lifestyleTags.forEach((t: string) => userTags.push(t));
+    }
     // 如果沒有標籤，也可以進行基礎診斷，不一定要擋死
     
     // 2. Get Listing Data

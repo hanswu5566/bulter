@@ -21,13 +21,13 @@ export async function POST(req: Request) {
       const isUnlimited = userEmail && UNLIMITED_EMAILS.includes(userEmail);
 
       const usedQuota = await getDailyUsage(userId);
-      const QUOTA_LIMIT = 3;
+      const QUOTA_LIMIT = 5;
 
       if (!isUnlimited && usedQuota >= QUOTA_LIMIT) {
         return NextResponse.json({
           success: false,
           error: "QUOTA_EXCEEDED",
-          message: "You've used your daily 3 messages. Upgrade for more!",
+          message: "You've used your daily 5 messages. Upgrade for more!",
           quota: { used: usedQuota, limit: QUOTA_LIMIT }
         }, { status: 403 });
       }

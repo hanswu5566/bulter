@@ -18,7 +18,32 @@ export async function POST(req: Request) {
     
     if (!listing) return errorResponse("Listing not found", 404);
 
+    const butlerInsight = (listing.butlerInsight as any) || {};
+    if (butlerInsight.inspectionGuide) {
+      console.log("Serving inspection guide from DB cache.");
+      return successResponse(butlerInsight.inspectionGuide);
+    }
+
+    console.log("Inspection guide not cached. Generating live...");
     const result = await generateInspectionGuideWithAI(listing);
+    
+    if (result && result.points) {
+      try {
+        await db.listing.update({
+          where: { id: listingId },
+          data: {
+            butlerInsight: {
+              ...butlerInsight,
+              inspectionGuide: result
+            }
+          }
+        });
+        console.log("Successfully saved generated inspection guide to DB cache.");
+      } catch (dbErr) {
+        console.error("Failed to save generated inspection guide to DB:", dbErr);
+      }
+    }
+
     return successResponse(result);
   });
 }

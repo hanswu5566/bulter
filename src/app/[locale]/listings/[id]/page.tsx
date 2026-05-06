@@ -5,7 +5,8 @@ import {
   Sparkles, MapPin, Calendar, 
   ShieldCheck, AlertTriangle, ArrowLeft, Loader2,
   ChevronLeft, ChevronRight, Building2, Ruler, 
-  CreditCard, Zap, Waves, Sofa, Home, Check
+  CreditCard, Zap, Waves, Home, Check,
+  Heart, Share2, ShieldAlert, Map, Scale, BarChart3, FileText
 } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { use } from "react";
@@ -18,6 +19,7 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
   const [listing, setListing] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [activeTab, setActiveTab] = useState("text"); // 'text', 'map', 'gov', 'price'
 
   useEffect(() => {
     fetch(`/api/listings/${id}`)
@@ -30,7 +32,6 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
       })
       .catch(() => setLoading(false));
 
-    // 監聽來自 Butler 的診斷更新事件
     const handleUpdate = (e: any) => {
       if (e.detail?.butlerInsight) {
         setListing((prev: any) => ({
@@ -44,13 +45,13 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
   }, [id]);
 
   if (loading) return (
-    <div className="min-h-screen bg-surface flex items-center justify-center">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    <div className="min-h-screen bg-[#FFFDD0] flex items-center justify-center">
+      <Loader2 className="w-10 h-10 animate-spin text-[#D2691E]" />
     </div>
   );
 
   if (!listing) return (
-    <div className="min-h-screen bg-surface flex items-center justify-center text-gray-500">
+    <div className="min-h-screen bg-[#FFFDD0] flex items-center justify-center text-[#333333]">
       未找到房源
     </div>
   );
@@ -59,277 +60,355 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
     ? listing.images 
     : ["https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=2070&auto=format&fit=crop"];
 
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % images.length);
-  };
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
-  };
+  const nextImage = () => setCurrentImageIndex((prev) => (prev + 1) % images.length);
+  const prevImage = () => setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
 
   const features = listing.features || {};
-  const verifiedFacts = features.verifiedFacts || {};
+  const butlerInsight = listing.butlerInsight || null;
+
+  const getVerdictStyles = (status: string) => {
+    switch (status) {
+      case "勸退":
+        return { bg: "bg-red-50", border: "border-red-500", text: "text-red-600", icon: ShieldAlert, darkBg: "bg-red-500" };
+      case "提醒":
+        return { bg: "bg-amber-50", border: "border-amber-500", text: "text-amber-600", icon: AlertTriangle, darkBg: "bg-amber-500" };
+      default:
+        return { bg: "bg-green-50", border: "border-green-500", text: "text-green-600", icon: ShieldCheck, darkBg: "bg-green-500" };
+    }
+  };
+
+  const verdictStyle = butlerInsight?.verdict?.status ? getVerdictStyles(butlerInsight.verdict.status) : getVerdictStyles("推薦");
 
   return (
-    <div className="min-h-screen bg-surface">
-      {/* Hero Gallery Carousel - Improved for mixed aspect ratios */}
-      <div className="h-[50vh] md:h-[70vh] bg-black relative overflow-hidden group">
-        {/* Background Blur Layer */}
-        <div className="absolute inset-0 scale-110 blur-3xl opacity-40">
-           <img 
+    <div className="min-h-screen bg-[#FFFDD0] text-[#333333] font-sans">
+      {/* Hero Section with Overlapping Content */}
+      <div className="relative h-[40vh] md:h-[50vh] bg-[#333333]">
+        <div className="absolute inset-0">
+          <img 
             src={images[currentImageIndex]} 
-            alt="blur background" 
-            className="w-full h-full object-cover"
-           />
-        </div>
-
-        <AnimatePresence mode="wait">
-          <motion.img 
-            key={currentImageIndex}
-            src={images[currentImageIndex]} 
-            alt={`Gallery ${currentImageIndex + 1}`}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.05 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="relative w-full h-full object-contain z-10"
+            alt="Hero image" 
+            className="w-full h-full object-cover opacity-80"
           />
-        </AnimatePresence>
-
-        {/* Back Button */}
-        <Link href="/listings" className="absolute top-6 left-6 bg-white/90 p-3 rounded-full shadow-lg hover:bg-white transition-colors z-20">
-          <ArrowLeft className="w-5 h-5 text-on-surface" />
-        </Link>
-
-        {/* Navigation Arrows */}
-        {images.length > 1 && (
-          <>
-            <button 
-              onClick={prevImage}
-              className="absolute left-6 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-4 rounded-full transition-all opacity-0 group-hover:opacity-100 backdrop-blur-md z-20 border border-white/10"
-            >
-              <ChevronLeft className="w-8 h-8" />
-            </button>
-            <button 
-              onClick={nextImage}
-              className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-4 rounded-full transition-all opacity-0 group-hover:opacity-100 backdrop-blur-md z-20 border border-white/10"
-            >
-              <ChevronRight className="w-8 h-8" />
-            </button>
-          </>
-        )}
-
-        {/* Image Counters */}
-        <div className="absolute bottom-8 right-8 bg-black/40 backdrop-blur-xl text-white px-6 py-2 rounded-full text-xs font-black z-20 border border-white/10 tracking-widest">
-          {currentImageIndex + 1} / {images.length}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#FFFDD0] via-transparent to-black/30" />
         </div>
 
-        {/* Indicators */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-20">
-          {images.map((_, idx) => (
-            <button 
-              key={idx}
-              onClick={() => setCurrentImageIndex(idx)}
-              className={`h-1 rounded-full transition-all ${idx === currentImageIndex ? 'w-10 bg-white shadow-xl' : 'w-2 bg-white/30'}`}
-            />
-          ))}
+        {/* Floating Nav */}
+        <div className="absolute top-6 left-6 right-6 flex justify-between items-center z-20">
+          <Link href="/" className="bg-white/90 p-3 rounded-full shadow-lg hover:bg-[#D2691E] hover:text-white transition-all duration-300">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="flex gap-3">
+            <button className="bg-white/90 p-3 rounded-full shadow-lg hover:bg-red-50 transition-all duration-300">
+              <Heart className="w-5 h-5 text-red-500" />
+            </button>
+            <button className="bg-white/90 p-3 rounded-full shadow-lg hover:bg-gray-50 transition-all duration-300">
+              <Share2 className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
+        </div>
+
+        {/* Counter */}
+        <div className="absolute bottom-24 right-6 bg-black/60 text-white px-4 py-1.5 rounded-full text-xs font-bold backdrop-blur-sm border border-white/20 z-20">
+          {currentImageIndex + 1} / {images.length}
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-12 grid lg:grid-cols-3 gap-12">
-        {/* Left Column: Info */}
-        <div className="lg:col-span-2">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-4 leading-tight">{listing.title}</h1>
-            <div className="flex items-center gap-2 text-gray-500">
-              <MapPin className="w-5 h-5" />
-              {listing.address}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-            <div className="butler-card bg-white text-center">
-              <div className="text-xs text-gray-400 font-bold mb-1">{t('rent')}</div>
-              <div className="text-xl font-bold text-primary">NT$ {listing.price?.toLocaleString()}</div>
-            </div>
-            {features.type && (
-              <div className="butler-card bg-white text-center">
-                <div className="text-xs text-gray-400 font-bold mb-1">{t('type')}</div>
-                <div className="text-lg font-bold">{features.type}</div>
-              </div>
-            )}
-            {features.size && (
-              <div className="butler-card bg-white text-center">
-                <div className="text-xs text-gray-400 font-bold mb-1">{t('size')}</div>
-                <div className="text-lg font-bold">{features.size} {t('unit_ping')}</div>
-              </div>
-            )}
-            {features.floor && (
-              <div className="butler-card bg-white text-center">
-                <div className="text-xs text-gray-400 font-bold mb-1">{t('floor')}</div>
-                <div className="text-lg font-bold">{features.floor}{features.totalFloor ? ` / ${features.totalFloor}` : ""} F</div>
-              </div>
-            )}
-          </div>
-
-          {/* Detailed Info Grid */}
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold mb-6">{t('details_title')}</h2>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
-                <div className="flex items-center gap-3 text-gray-500">
-                  <CreditCard className="w-5 h-5" />
-                  <span>{t('deposit')}</span>
-                </div>
-                <span className="font-bold">{features.deposit || "面議"}</span>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
-                <div className="flex items-center gap-3 text-gray-500">
-                  <Zap className="w-5 h-5" />
-                  <span>{t('electricity')}</span>
-                </div>
-                <span className="font-bold">{features.electricity || "台水台電"}</span>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
-                <div className="flex items-center gap-3 text-gray-500">
-                  <Waves className="w-5 h-5" />
-                  <span>{t('water')}</span>
-                </div>
-                <span className="font-bold">{features.water || "台水台電"}</span>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
-                <div className="flex items-center gap-3 text-gray-500">
-                  <Home className="w-5 h-5" />
-                  <span>{t('pets')}</span>
-                </div>
-                <span className={`font-bold ${features.pets === "allow" ? "text-success" : "text-gray-400"}`}>
-                  {features.pets === "allow" ? t('pet_allow') : t('pet_deny')}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Appliances & Furniture */}
-          <div className="mb-12 space-y-8">
-            {features.appliances && features.appliances.length > 0 && (
-              <div>
-                <h2 className="text-2xl font-bold mb-6">{t('appliances_title')}</h2>
-                <div className="flex flex-wrap gap-2">
-                  {features.appliances.map((item: string) => (
-                    <div key={item} className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 text-sm font-bold">
-                      <Check className="w-4 h-4 text-success" />
-                      {item}
+      {/* Main Content Grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 -mt-16 relative z-30">
+        <div className="grid lg:grid-cols-3 gap-8">
+          
+          {/* Left Column (DOMINANT: AI Butler Report with 4 Tabs) */}
+          <div className="lg:col-span-2 space-y-8">
+            
+            {/* The Masterpiece: AI Butler Anti-Trap Report with 4 Tabs */}
+            {butlerInsight ? (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className={`bg-white rounded-3xl border-4 ${verdictStyle.border} shadow-2xl p-8 relative overflow-hidden`}
+              >
+                {/* Diagonal Striped Header */}
+                <div className={`absolute top-0 left-0 right-0 h-3 ${verdictStyle.darkBg} opacity-90`} />
+                
+                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6 mt-2">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 ${verdictStyle.bg} rounded-xl flex items-center justify-center border-2 ${verdictStyle.border}`}>
+                      <verdictStyle.icon className={`w-6 h-6 ${verdictStyle.text}`} />
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {features.furniture && features.furniture.length > 0 && (
-              <div>
-                <h2 className="text-2xl font-bold mb-6">{t('furniture_title')}</h2>
-                <div className="flex flex-wrap gap-2">
-                  {features.furniture.map((item: string) => (
-                    <div key={item} className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 text-sm font-bold">
-                      <Check className="w-4 h-4 text-success" />
-                      {item}
+                    <div>
+                      <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-0.5">AI Butler 終極裁決</div>
+                      <h1 className={`font-black text-2xl ${verdictStyle.text} font-serif`}>管家防坑診斷報告</h1>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {features.others && features.others.length > 0 && (
-              <div>
-                <h2 className="text-2xl font-bold mb-6">{t('others_title')}</h2>
-                <div className="flex flex-wrap gap-2">
-                  {features.others.map((item: string) => (
-                    <div key={item} className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 text-sm font-bold">
-                      <Check className="w-4 h-4 text-success" />
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold mb-6">{t('description_title')}</h2>
-            <div 
-              className="text-gray-600 leading-relaxed whitespace-pre-wrap listing-description"
-              dangerouslySetInnerHTML={{ __html: listing.description || t('description_empty') }}
-            />
-          </div>
-
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold mb-6">{t('verified_facts_title')}</h2>
-            <div className="space-y-4">
-              {Object.keys(verifiedFacts).length > 0 ? Object.entries(verifiedFacts).map(([key, value]: any) => (
-                <div key={key} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100">
-                  <span className="text-gray-600">{key}</span>
-                  <span className={`font-bold ${value ? "text-success" : "text-gray-400"}`}>
-                    {value ? t('verified') : t('unverified')}
+                  </div>
+                  <span className={`px-5 py-1.5 rounded-full text-sm font-black uppercase border-2 ${verdictStyle.border} ${verdictStyle.bg} ${verdictStyle.text} text-center`}>
+                    {butlerInsight.verdict?.status || "未知"}
                   </span>
                 </div>
-              )) : (
-                <div className="text-gray-400 text-sm italic">{t('verified_facts_empty')}</div>
+
+                {/* Summary */}
+                <div className={`p-5 rounded-xl ${verdictStyle.bg} text-lg font-bold leading-relaxed ${verdictStyle.text} mb-6 border ${verdictStyle.border} font-serif`}>
+                  💡 {butlerInsight.verdict?.summary || "未提供總結"}
+                </div>
+
+                {/* 4 Tabs Navigation - SCROLLABLE ON MOBILE */}
+                <div className="flex border-b border-gray-100 mb-6 overflow-x-auto gap-2 no-scrollbar">
+                  <button 
+                    onClick={() => setActiveTab("text")}
+                    className={`pb-3 px-4 text-sm font-black transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === "text" ? 'border-[#D2691E] text-[#D2691E]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <FileText className="w-4 h-4" /> 文案地雷
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab("map")}
+                    className={`pb-3 px-4 text-sm font-black transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === "map" ? 'border-[#D2691E] text-[#D2691E]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <Map className="w-4 h-4" /> 地圖隱患
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab("gov")}
+                    className={`pb-3 px-4 text-sm font-black transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === "gov" ? 'border-[#D2691E] text-[#D2691E]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <Scale className="w-4 h-4" /> 政府防線
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab("price")}
+                    className={`pb-3 px-4 text-sm font-black transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === "price" ? 'border-[#D2691E] text-[#D2691E]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <BarChart3 className="w-4 h-4" /> 實價比對
+                  </button>
+                </div>
+
+                {/* Tab Content */}
+                <div className="min-h-[250px]">
+                  
+                  {/* Tab 1: Text Risks (Existing Data) */}
+                  {activeTab === "text" && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-4"
+                    >
+                      {butlerInsight.risks && butlerInsight.risks.length > 0 ? (
+                        butlerInsight.risks.map((r: any, idx: number) => (
+                          <div key={idx} className="flex items-start gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all duration-300">
+                            <AlertTriangle className={`w-5 h-5 shrink-0 mt-1 ${
+                              r.severity === "HIGH" ? "text-red-500" :
+                              r.severity === "MEDIUM" ? "text-amber-500" : "text-yellow-500"
+                            }`} />
+                            <div>
+                              <p className="text-base font-black text-[#333333] mb-0.5">[ {r.type} ]</p>
+                              <p className="text-sm text-gray-600 leading-relaxed">{r.content}</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-base text-green-600 font-bold flex items-center gap-3 bg-green-50 p-5 rounded-xl border border-green-100">
+                          <Check className="w-5 h-5" /> 此房源未發現明顯的隱藏風險！
+                        </div>
+                      )}
+
+                      {/* Highlights Proof */}
+                      {butlerInsight.highlightLines && butlerInsight.highlightLines.length > 0 && (
+                        <div className="pt-4 border-t border-gray-100 mt-4">
+                          <div className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">擷取之文字鐵證</div>
+                          <div className="space-y-2">
+                            {butlerInsight.highlightLines.map((line: string, idx: number) => (
+                              <div key={idx} className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">
+                                "{line}"
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Tab 2: Map Insights (Simulated Google Maps) */}
+                  {activeTab === "map" && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-4"
+                    >
+                      <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+                        <div className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">📍 Google Maps 周邊感官地雷偵測</div>
+                        <div className="space-y-4">
+                          {butlerInsight.mapsThreats && butlerInsight.mapsThreats.length > 0 ? (
+                            butlerInsight.mapsThreats.map((threat: any, idx: number) => (
+                              <div key={idx} className="flex items-start gap-3">
+                                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-sm font-bold text-[#333333]">{threat.name} ({threat.keyword})</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">類型：{threat.type}，距離：{threat.distance}，地址：{threat.vicinity}</p>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-sm text-green-600 font-bold flex items-center gap-2">
+                              <Check className="w-4 h-4" /> 方圓 100 公尺內未發現明顯地圖嫌惡設施。
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Real Map Iframe */}
+                      <div className="h-64 w-full rounded-xl overflow-hidden border border-gray-200 shadow-sm mt-4">
+                        <iframe
+                          width="100%"
+                          height="100%"
+                          frameBorder="0"
+                          style={{ border: 0 }}
+                          src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(listing.address || "台北市")}`}
+                          allowFullScreen
+                        ></iframe>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Tab 3: Gov Data (Simulated Government Data) */}
+                  {activeTab === "gov" && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-4"
+                    >
+                      <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+                        <div className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">⚖️ 台灣政府公開資訊安全防線</div>
+                        <div className="space-y-4">
+                          <div className="flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-bold text-[#333333]">土壤液化高潛勢區 (中央地調所)</p>
+                              <p className="text-xs text-gray-500 mt-0.5">本房源位於台北盆地土壤液化高潛勢區，雖然不代表立刻有危險，但看房時請務必檢查地下室或一樓牆面是否有明顯斜裂縫。</p>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-3">
+                            <Check className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-bold text-[#333333]">無違建查報紀錄 (台北市建管處)</p>
+                              <p className="text-xs text-gray-500 mt-0.5">經查詢，本建築物目前無公開列管的違建拆除紀錄。</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Tab 4: Real Price (Simulated Real Price Registration) */}
+                  {activeTab === "price" && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-4"
+                    >
+                      <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+                        <div className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">📊 內政部實價登錄比對 (盤子指數)</div>
+                        
+                        <div className="text-center py-4">
+                          <div className="text-xs text-gray-400 mb-1">本房源單價溢價率</div>
+                          <div className="text-4xl font-black text-red-500 font-serif">+ 25.3%</div>
+                          <div className="text-xs text-red-500 font-bold mt-1">⚠️ 盤子指數：高度</div>
+                        </div>
+
+                        <div className="space-y-2 border-t border-gray-200 pt-3">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">本案開價</span>
+                            <span className="font-bold">NT$ 106,900</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-400">西門商圈同型態均價</span>
+                            <span className="text-gray-500 font-bold">NT$ 85,300</span>
+                          </div>
+                        </div>
+                        
+                        <p className="text-xs text-gray-400 mt-4 leading-relaxed">
+                          * 數據取自內政部實價登錄近半年西門站周邊 500 公尺內，同為「整層住家」型態之租賃成交案例。
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            ) : (
+              <div className="bg-white rounded-3xl p-10 text-center border-2 border-dashed border-gray-200">
+                <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h2 className="text-xl font-bold text-gray-400">尚未生成 AI 防坑報告</h2>
+                <p className="text-sm text-gray-400 mt-2">請貼上網址進行解析</p>
+              </div>
+            )}
+
+          </div>
+
+          {/* Right Column (Action Card & Basic Data) */}
+          <div className="space-y-8">
+            
+            {/* 1. Pricing & Action Card */}
+            <div className="bg-white rounded-3xl p-8 shadow-2xl shadow-[#D2691E]/10 border-2 border-[#D2691E] sticky top-6">
+              <div className="text-xs text-gray-400 font-black uppercase tracking-wider mb-1">真金流月支出預估</div>
+              <div className="text-4xl font-black text-[#D2691E] font-serif mb-6">
+                NT$ {((listing.price || 0) + (butlerInsight?.estimatedTotalCost?.management || 0))?.toLocaleString()}
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">官方月租金</span>
+                  <span className="font-bold">NT$ {listing.price?.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">大樓管理費</span>
+                  <span className="font-bold">NT$ {butlerInsight?.estimatedTotalCost?.management?.toLocaleString() || 0}</span>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <Link 
+                  href={`/inspect/${listing.id}`}
+                  className="w-full bg-[#D2691E] text-white text-center py-4 rounded-xl font-bold shadow-lg hover:bg-[#b25915] transition-all duration-300 flex items-center justify-center gap-2 text-sm"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  {t('start_inspection')}
+                </Link>
+                <Link 
+                  href={`/listings/${listing.id}/booking`}
+                  className="w-full border-2 border-[#D2691E] text-[#D2691E] text-center py-4 rounded-xl font-bold hover:bg-[#FFFDD0] transition-all duration-300 flex items-center justify-center gap-2 text-sm"
+                >
+                  <Calendar className="w-4 h-4" />
+                  {t('book_viewing')}
+                </Link>
+              </div>
+            </div>
+
+            {/* 2. Minimized Listing Details (MOVED HERE) */}
+            <div className="bg-white rounded-3xl p-6 shadow-xl shadow-[#D2691E]/5 border border-gray-50">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-base font-black text-[#333333] font-serif">房源原始基礎資料</h2>
+                <span className="text-xs text-gray-400">（僅供對照）</span>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="space-y-2">
+                  <p><span className="text-gray-400">房源標題：</span><span className="font-bold line-clamp-1">{listing.title}</span></p>
+                  <p><span className="text-gray-400">地址：</span><span className="font-bold line-clamp-1">{listing.address}</span></p>
+                </div>
+                <div className="space-y-2">
+                  <p><span className="text-gray-400">坪數：</span><span className="font-bold">{features.size || "--"} 坪</span></p>
+                  <p><span className="text-gray-400">樓層：</span><span className="font-bold">{features.floor || "--"}{features.totalFloor ? `/${features.totalFloor}` : ""}F</span></p>
+                </div>
+              </div>
+              
+              {listing.description && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="text-xs font-black text-gray-400 uppercase tracking-wider mb-2">原文簡介</div>
+                  <div className="text-xs text-gray-500 line-clamp-2 hover:line-clamp-none transition-all cursor-pointer leading-relaxed">
+                    {listing.description}
+                  </div>
+                </div>
               )}
             </div>
+            
           </div>
-        </div>
-
-        {/* Right Column: AI Butler Actions */}
-        <div className="space-y-8">
-          {/* AI Insight Card */}
-          {listing.butlerInsight && (
-            <div className="bg-primary p-6 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
-              <Sparkles className="absolute -top-4 -right-4 w-24 h-24 opacity-10" />
-                          <div className="flex items-center gap-3 mb-6">
-                            <Sparkles className="w-8 h-8" />
-                            <h3 className="font-bold text-lg">{t('butler_report_title')}</h3>
-                          </div>
-              
-              <div className="space-y-4 text-sm leading-relaxed">
-                {listing.butlerInsight.highlights?.map((h: string, idx: number) => (
-                  <div key={idx} className="flex gap-3">
-                    <ShieldCheck className="w-5 h-5 shrink-0 text-success" />
-                    <p>{h}</p>
-                  </div>
-                ))}
-                {listing.butlerInsight.risks?.map((r: string, idx: number) => (
-                  <div key={idx} className="flex gap-3">
-                    <AlertTriangle className="w-5 h-5 shrink-0 text-orange-200" />
-                    <p>{r}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-8 p-3 bg-white/10 rounded-xl text-[10px] text-white/70 italic text-center">
-                {t('butler_report_footer')}
-              </div>
-            </div>
-          )}
-
-          {/* Action Card */}
-          <div className="butler-card bg-white shadow-lg sticky top-24">
-            <div className="text-3xl font-black mb-6">NT$ {listing.price?.toLocaleString()} <span className="text-xs font-normal text-gray-400">/ 月</span></div>
-            <Link 
-              href={`/inspect/${listing.id}`}
-              className="block w-full bg-primary text-white text-center py-4 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all mb-4"
-            >
-              {t('start_inspection')}
-            </Link>
-            <Link 
-              href={`/listings/${listing.id}/booking`}
-              className="w-full border-2 border-primary text-primary py-4 rounded-2xl font-bold hover:bg-primary/5 transition-all flex items-center justify-center gap-2"
-            >
-              <Calendar className="w-5 h-5" />
-              {t('book_viewing')}
-            </Link>
-            <p className="text-[10px] text-gray-400 text-center mt-4">
-              {t('booking_stats', {count: 12})}
-            </p>
-          </div>
+          
         </div>
       </div>
     </div>

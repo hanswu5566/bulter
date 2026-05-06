@@ -8,10 +8,10 @@ export async function POST(req: Request) {
     const session = await auth();
     if (!session) return errorResponse("Unauthorized", 401);
 
-    const { tags } = await req.json();
+    const { name } = await req.json();
     const updatedUser = await db.user.update({
       where: { id: session.user.id },
-      data: { aiTags: tags },
+      data: { name },
     });
     return successResponse(updatedUser);
   });

@@ -1,13 +1,68 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { motion } from "framer-motion";
-import { User, Mail, Shield, Tags, Loader2, Sparkles } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { motion, AnimatePresence } from "framer-motion";
+import { User, Mail, Shield, Loader2, Sparkles, Check, ArrowLeftRight, ArrowLeft } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter, Link } from "@/i18n/routing";
 
 export default function ProfilePage() {
-  const { data: session, status } = useSession();
-  const t = useTranslations("Navbar"); // Reusing for common terms
+  const { data: session, status, update } = useSession();
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [showSavedToast, setShowSavedToast] = useState(false);
+  const role = "TENANT";
+
+  useEffect(() => {
+    if (session?.user?.name) {
+      setName(session.user.name);
+    }
+  }, [session]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      
+      if (res.ok) {
+        await update({ name });
+        setShowSavedToast(true);
+        setTimeout(() => setShowSavedToast(false), 3000);
+      }
+    } catch (err) {
+      console.error("Save profile failed", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRoleSwitch = async () => {
+    setIsSwitching(true);
+    const newRole = role === "TENANT" ? "LANDLORD" : "TENANT";
+    try {
+      const res = await fetch("/api/user/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ role: newRole }),
+        headers: { "Content-Type": "application/json" },
+      });
+      const resData = await res.json();
+      
+      if (resData.success) {
+        await update({ role: newRole });
+        router.refresh();
+      }
+    } catch (err) {
+      console.error("Failed to update role", err);
+    } finally {
+      setIsSwitching(false);
+    }
+  };
 
   if (status === "loading") {
     return (
@@ -25,88 +80,127 @@ export default function ProfilePage() {
     );
   }
 
-  const profileTags = (session.user as any)?.aiTags || [];
-
   return (
-    <main className="min-h-screen bg-surface p-6 md:p-12">
-      <div className="max-w-4xl mx-auto">
+    <main className="min-h-screen bg-surface p-6 md:p-12 relative">
+      <AnimatePresence>
+        {showSavedToast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-12 left-1/2 -translate-x-1/2 z-50 bg-on-surface text-white px-8 py-4 rounded-2xl shadow-2xl font-bold flex items-center gap-3"
+          >
+            <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+              <Check className="w-4 h-4 text-white" />
+            </div>
+            個人資料已儲存！
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="max-w-3xl mx-auto">
         <header className="mb-12">
-          <h1 className="text-4xl font-black text-on-surface mb-2">個人帳戶設定</h1>
-          <p className="text-gray-500">管理您的基本資訊與 AI 採集的生活特徵。</p>
+          <div className="flex items-center gap-3 mb-2">
+            <Link href="/" className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-gray-100 hover:bg-gray-50 transition-colors shadow-sm cursor-pointer">
+              <ArrowLeft className="w-5 h-5 text-on-surface" />
+            </Link>
+            <h1 className="text-4xl font-black text-on-surface">個人資料設定</h1>
+          </div>
+          <p className="text-gray-500">
+            管理您的基本帳戶資料與使用者角色。
+          </p>
         </header>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {/* Sidebar - Profile Card */}
-          <div className="md:col-span-1">
-            <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-xl text-center">
-              <div className="w-24 h-24 bg-primary/10 rounded-full mx-auto mb-6 flex items-center justify-center overflow-hidden border-4 border-white shadow-md">
-                {session.user?.image ? (
-                  <img src={session.user.image} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-10 h-10 text-primary" />
-                )}
-              </div>
-              <h2 className="text-xl font-bold text-on-surface mb-1">{session.user?.name}</h2>
-              <p className="text-xs text-gray-400 mb-6">{session.user?.email}</p>
-              
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary text-white rounded-full text-[10px] font-black uppercase tracking-wider">
-                <Shield className="w-3 h-3" />
-                {(session.user as any).role || "TENANT"}
+        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-8">
+          {/* Avatar Section */}
+          <div className="flex flex-col items-center sm:flex-row sm:items-center gap-6">
+            <div className="w-24 h-24 bg-primary/10 rounded-3xl flex items-center justify-center overflow-hidden border-4 border-white shadow-md">
+              {session.user?.image ? (
+                <img src={session.user.image} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-12 h-12 text-primary" />
+              )}
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-on-surface">{session.user?.name || "使用者"}</h3>
+              <p className="text-sm text-gray-400">{session.user?.email}</p>
+              <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary text-xs font-black rounded-full uppercase tracking-tighter">
+                Elite Tenant
               </div>
             </div>
           </div>
 
-          {/* Main Content */}
-          <div className="md:col-span-2 space-y-8">
-            {/* Account Info */}
-            <section className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm">
-              <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                <User className="w-5 h-5 text-primary" />
-                基本資訊
-              </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between py-3 border-b border-gray-50">
-                  <span className="text-gray-400 text-sm">名稱</span>
-                  <span className="font-medium text-on-surface">{session.user?.name}</span>
-                </div>
-                <div className="flex justify-between py-3 border-b border-gray-50">
-                  <span className="text-gray-400 text-sm">電子郵件</span>
-                  <span className="font-medium text-on-surface">{session.user?.email}</span>
-                </div>
+          <div className="border-t border-gray-50 pt-8 space-y-6">
+            {/* Name Input */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">顯示名稱</label>
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input 
+                  type="text" 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="請輸入您的姓名"
+                />
               </div>
-            </section>
+            </div>
 
-            {/* AI collected Intent Tags */}
-            <section className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm overflow-hidden relative">
-              <div className="absolute top-0 right-0 p-6 opacity-[0.03] pointer-events-none">
-                <Sparkles className="w-32 h-32 text-primary" />
+            {/* Email (Readonly) */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">電子郵件</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input 
+                  type="email" 
+                  value={session.user?.email || ""} 
+                  readOnly
+                  className="w-full pl-12 pr-4 py-3 border border-gray-100 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
+                />
               </div>
-              <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                <Tags className="w-5 h-5 text-primary" />
-                管家印象標籤
-              </h3>
-              <p className="text-sm text-gray-500 mb-8 leading-relaxed">
-                這些標籤由管家透過對話分析得出，將用於為您精準推薦最合適的房源。
-              </p>
-              
-              <div className="flex flex-wrap gap-3">
-                {profileTags.length > 0 ? profileTags.map((tag: string, idx: number) => (
-                  <motion.span 
-                    key={tag}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="px-6 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-600 hover:border-primary transition-colors cursor-default shadow-sm"
-                  >
-                    #{tag}
-                  </motion.span>
-                )) : (
-                  <div className="text-center w-full py-8 text-gray-400 italic text-sm">
-                    尚無標籤，試著跟管家聊聊您的居住需求！
+              <p className="text-[10px] text-gray-400 mt-1 ml-2">電子郵件由登入服務提供，無法在此修改。</p>
+            </div>
+
+            {/* Role Switch */}
+            {false && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">使用者角色</label>
+              <div className="bg-gray-50 p-4 rounded-xl flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-on-surface">
+                    當前身分：房客
                   </div>
-                )}
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    切換身分以使用不同的功能。
+                  </p>
+                </div>
+                <button 
+                  onClick={handleRoleSwitch}
+                  disabled={isSwitching}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-on-surface text-white text-sm font-black hover:opacity-90 transition-all cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {isSwitching ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  ) : (
+                    <ArrowLeftRight className="w-4 h-4 text-primary" />
+                  )}
+                  切換為{role === "TENANT" ? "房東" : "房客"}
+                </button>
               </div>
-            </section>
+            </div>
+            )}
+          </div>
+
+          {/* Save Button */}
+          <div className="border-t border-gray-50 pt-6 flex justify-end">
+            <button
+              onClick={handleSave}
+              disabled={isSaving || name === session.user?.name}
+              className="bg-primary text-white px-10 py-4 rounded-2xl font-black shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+            >
+              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+              儲存修改
+            </button>
           </div>
         </div>
       </div>

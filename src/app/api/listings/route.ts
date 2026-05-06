@@ -23,13 +23,15 @@ export async function GET() {
       }
     });
 
-    const userTags = (session?.user as any)?.aiTags as string[] | undefined;
+    const userProfile = (session?.user as any)?.aiTags;
     
     const processedListings = await Promise.all(
       listings.map(async (l) => {
-        const matchScore = userTags && userTags.length > 0 
-          ? await calculateMatchScore(userTags, l) 
-          : 70;
+        const matchResult = userProfile 
+          ? await calculateMatchScore(userProfile, l) 
+          : { score: 70, basicScore: 70, advancedScore: 70, pros: [], cons: [] };
+          
+        const matchScore = matchResult.score;
           
         // 幫公開列表也生成 Signed URLs
         const signedImages = l.images ? await Promise.all(l.images.map(img => getSignedDownloadUrl(img))) : [];

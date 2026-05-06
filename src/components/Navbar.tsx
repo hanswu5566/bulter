@@ -31,13 +31,13 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const role = (session?.user as any)?.role || "TENANT";
+  const role = "TENANT";
 
   const handleRoleSwitch = async () => {
     setIsSwitching(true);
     const newRole = role === "TENANT" ? "LANDLORD" : "TENANT";
     try {
-      const res = await fetch("/api/user/profile", {
+      const res = await fetch("/api/user/preferences", {
         method: "PATCH",
         body: JSON.stringify({ role: newRole }),
         headers: { "Content-Type": "application/json" },
@@ -78,7 +78,7 @@ export default function Navbar() {
           {/* LEFT: Branding & Public Nav */}
           <div className="flex items-center gap-10">
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary to-[#B85A15] rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
                 <ButlerIcon className="text-white w-6 h-6" />
               </div>
               <div className="flex flex-col">
@@ -87,7 +87,8 @@ export default function Navbar() {
               </div>
             </Link>
 
-            <div className="hidden lg:flex items-center gap-1">
+            {/* Hidden Explore for Extension focus */}
+            {/* <div className="hidden lg:flex items-center gap-1">
               <Link 
                 href="/listings" 
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold transition-all ${
@@ -97,14 +98,13 @@ export default function Navbar() {
                 <Compass className="w-4 h-4" />
                 {t('explore')}
               </Link>
-            </div>
+            </div> */}
           </div>
 
           {/* RIGHT: Role-based Workspace & Profile */}
           <div className="flex items-center gap-4">
-            {session && (
+            {session && role === "TENANT" && (
               <div className="hidden md:flex items-center bg-gray-50 p-1.5 rounded-2xl border border-gray-100 gap-1">
-                {role === "TENANT" ? (
                   <Link 
                     href="/reports" 
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
@@ -114,28 +114,6 @@ export default function Navbar() {
                     <ClipboardCheck className="w-3.5 h-3.5" />
                     {t('reports')}
                   </Link>
-                ) : (
-                  <>
-                    <Link 
-                      href="/landlord/listings" 
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                        isActive('/landlord/listings') && !isActive('/landlord/listings/create') ? 'bg-white shadow-sm text-on-surface' : 'text-gray-400 hover:text-on-surface'
-                      }`}
-                    >
-                      <LayoutDashboard className="w-3.5 h-3.5" />
-                      {t('my_listings')}
-                    </Link>
-                    <Link 
-                      href="/landlord/listings/create" 
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                        isActive('/landlord/listings/create') ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-gray-400 hover:text-on-surface'
-                      }`}
-                    >
-                      <PlusCircle className="w-3.5 h-3.5" />
-                      {t('import')}
-                    </Link>
-                  </>
-                )}
               </div>
             )}
 
@@ -145,7 +123,8 @@ export default function Navbar() {
               <div className="w-10 h-10 bg-gray-50 rounded-full animate-pulse" />
             ) : session ? (
               <div className="flex items-center gap-3">
-                <button 
+                {/* Hidden Role Switch for MVP focus */}
+                {/* <button 
                   onClick={toggleRole}
                   disabled={isSwitching}
                   className="hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-on-surface text-white text-sm font-black hover:opacity-90 transition-all cursor-pointer shadow-md disabled:opacity-50"
@@ -156,7 +135,7 @@ export default function Navbar() {
                     <ArrowLeftRight className="w-4 h-4 text-primary" />
                   )}
                   {role === "TENANT" ? t('switch_landlord') : t('switch_tenant')}
-                </button>
+                </button> */}
                 
                 <div className="relative">
                   <button 
@@ -184,7 +163,7 @@ export default function Navbar() {
                             <div className="text-xs font-black text-on-surface truncate">{session.user?.name}</div>
                             <div className="text-[10px] text-gray-400 truncate mt-0.5">{session.user?.email}</div>
                             <div className="mt-3 inline-flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 text-primary text-[9px] font-black rounded-full uppercase tracking-tighter">
-                              {role === "LANDLORD" ? 'Landlord Member' : 'Elite Tenant'}
+                              Elite Tenant
                             </div>
                           </div>
                           
@@ -193,7 +172,7 @@ export default function Navbar() {
                             onClick={() => setIsMenuOpen(false)}
                             className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-colors"
                           >
-                            <Settings className="w-4 h-4 text-gray-400" />
+                            <User className="w-4 h-4 text-gray-400" />
                             {t('profile')}
                           </Link>
                           
@@ -213,7 +192,7 @@ export default function Navbar() {
             ) : (
               <button 
                 onClick={() => signIn("google")}
-                className="bg-primary text-white px-6 py-3 rounded-2xl text-sm font-black shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
+                className="bg-gradient-to-br from-primary to-[#B85A15] text-white px-6 py-3 rounded-2xl text-sm font-black shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
               >
                 {t('login')}
               </button>

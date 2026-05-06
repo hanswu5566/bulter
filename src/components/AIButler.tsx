@@ -45,7 +45,7 @@ export default function AIButler() {
   const [optimizationData, setOptimizationData] = useState<any>(null);
   const [inspectionData, setInspectionData] = useState<any>(null);
 
-  const role = useMemo(() => (session?.user as any)?.role || "TENANT", [session]);
+  const role = "TENANT";
 
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
 
@@ -126,6 +126,11 @@ export default function AIButler() {
 
   // --- Actions ---
   const handleAction = async (action: string) => {
+    if (!session) {
+      setMessages([{ role: "assistant", content: "🔒 請先登入會員以使用 Butler 管家服務。" }]);
+      return;
+    }
+
     if (action === "START_INTERVIEW") {
       setView("INTERVIEW");
       setMessages([]);
@@ -199,6 +204,10 @@ export default function AIButler() {
   };
 
   const nextInterviewStep = async (currentResponse?: string) => {
+    if (!session) {
+      setMessages([{ role: "assistant", content: "🔒 請先登入會員以使用 Butler 管家服務。" }]);
+      return;
+    }
     setLoading(true);
     if (currentResponse) {
       setMessages(prev => [...prev, { role: "user", content: currentResponse }]);
@@ -256,15 +265,15 @@ export default function AIButler() {
 
       <AnimatePresence>
         {isOpen && (
-          <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="fixed bottom-28 right-10 w-[calc(100vw-3rem)] md:w-80 bg-white rounded-[2rem] shadow-2xl border border-gray-100 z-50 flex flex-col overflow-hidden h-[500px]">
+          <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="fixed bottom-28 right-10 w-[calc(100vw-3rem)] md:w-80 bg-white/90 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-white/20 z-50 flex flex-col overflow-hidden h-[500px]">
             {/* Header */}
-            <div className="bg-primary p-4 text-white flex items-center justify-between">
+            <div className="bg-gradient-to-br from-primary to-[#B85A15] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center"><ButlerIcon className="w-5 h-5 text-white" /></div>
                 <div>
-                  <div className="font-bold text-sm">{t('name')}</div>
+                  <div className="font-semibold tracking-wide text-sm">{t('name')}</div>
                   <div className="text-[9px] opacity-70">
-                    {view === "INTERVIEW" ? (role === "LANDLORD" ? t('view_interview_landlord') : t('view_interview_tenant')) : t('view_menu')}
+                    {view === "INTERVIEW" ? t('view_interview_tenant') : t('view_menu')}
                   </div>
                 </div>
               </div>
@@ -274,7 +283,7 @@ export default function AIButler() {
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-surface/30">
               {messages.map((m, idx) => (
                 <div key={idx} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[90%] p-3 rounded-2xl text-[13px] ${m.role === "user" ? "bg-primary text-white rounded-br-none" : "bg-white text-on-surface shadow-sm rounded-bl-none border border-gray-100 whitespace-pre-wrap"}`}>{m.content}</div>
+                  <div className={`max-w-[90%] p-3 text-[13px] leading-relaxed ${m.role === "user" ? "bg-primary text-white rounded-2xl rounded-br-none shadow-md shadow-primary/10" : "bg-card text-on-surface shadow-sm rounded-2xl rounded-bl-none border border-gray-100 whitespace-pre-wrap"}`}>{m.content}</div>
                 </div>
               ))}
               
@@ -397,7 +406,7 @@ export default function AIButler() {
                       </div>
                       <div className="flex-1">
                         <div className={`font-bold ${context === "GENERAL" ? 'text-sm' : 'text-[11px]'}`}>
-                          {role === "TENANT" ? t('action_interview_tenant') : t('action_interview_landlord')}
+                          {t('action_interview_tenant')}
                         </div>
                         {context === "GENERAL" && <div className="text-[9px] opacity-70">獲取精準推薦</div>}
                       </div>

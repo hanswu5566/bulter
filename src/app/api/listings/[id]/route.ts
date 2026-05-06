@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
-import { MODELS, genAI } from "@/lib/ai";
+import { MODELS, genAI, diagnoseMatchWithAI } from "@/lib/ai";
 import { withErrorHandler, successResponse, errorResponse } from "@/lib/api-utils";
 import { deleteFiles, getSignedDownloadUrl } from "@/lib/storage";
 
@@ -11,6 +11,8 @@ export async function GET(
 ) {
   return withErrorHandler(async () => {
     const { id } = await params;
+    const session = await auth();
+    
     const listing = await db.listing.findUnique({
       where: { id },
       include: {
@@ -26,12 +28,28 @@ export async function GET(
       return errorResponse("Listing not found", 404);
     }
 
+    // Dynamic AI Diagnosis if user is logged in
+    let matchResult = null;
+    if (session?.user?.id) {
+      const user = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: { aiTags: true }
+      });
+
+      if (user?.aiTags && Array.isArray(user.aiTags)) {
+        matchResult = await diagnoseMatchWithAI(user.aiTags as string[], listing);
+      }
+    }
+
     // 幫房源詳情頁面生成 Signed URLs
     if (listing.images && listing.images.length > 0) {
       listing.images = await Promise.all(listing.images.map(img => getSignedDownloadUrl(img)));
     }
 
-    return successResponse(listing);
+    return successResponse({
+      ...listing,
+      matchResult
+    });
   });
 }
 

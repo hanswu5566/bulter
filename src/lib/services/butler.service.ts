@@ -107,9 +107,13 @@ export class ButlerService {
       const model = genAI.getGenerativeModel({ model: MODELS.LITE });
       const prompt = `User is answering a rental interview question about "${field}". 
       User Answer: "${message}"
-      Extract the intent into a single key-value pair for a JSON object.
-      Example: { "budget_max": 25000 } or { "regions": ["Xinyi"] }
-      Return ONLY JSON.`;
+      
+      You must extract this preference into a single key-value pair for a JSON object conforming strictly to these rules:
+      - If the field is "budget": extract as "budgetMax" (number, e.g. 25000) or "budgetMin" (number)
+      - If the field is "region": extract as "regions" (array of strings, e.g. ["信義區"])
+      - If the field is "lifestyle": extract as "lifestyleTags" (array of strings, e.g. ["有養寵物", "極度安靜"])
+      
+      Return ONLY JSON. Example: { "budgetMax": 20000 } or { "regions": ["信義區"] }`;
 
       const result = await model.generateContent(prompt);
       const text = result.response.text();

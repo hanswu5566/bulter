@@ -52,7 +52,7 @@ export default async function RootLayout({
           <Providers>
             <Navbar />
             {children}
-            <AIButler />
+            {/* <AIButler /> */}
           </Providers>
         </NextIntlClientProvider>
       </body>

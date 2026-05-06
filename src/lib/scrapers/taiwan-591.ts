@@ -54,21 +54,90 @@ export async function scrape591(url: string) {
     const imageMap = new Map<string, string>();
 
     // 方法 A: 解析 JSON-LD (最穩定，SEO 標準格式)
+    const ruleData: any = {
+      title: "",
+      price: 0,
+      address: "",
+      size: "",
+      floor: "",
+      type: "",
+      amenities: [],
+      description: ""
+    };
+
     $('script[type="application/ld+json"]').each((_, el) => {
       try {
-        const json = JSON.parse($(el).html() || '{}');
-        const images = json.image || json.photos || [];
-        if (Array.isArray(images)) {
-          images.forEach(img => {
-            if (typeof img === 'string' && img.includes('591.com.tw')) {
-              imageMap.set(img.split('!')[0], img);
-            }
-          });
-        } else if (typeof images === 'string' && images.includes('591.com.tw')) {
-          imageMap.set(images.split('!')[0], images);
-        }
+        const jsonRaw = JSON.parse($(el).html() || '{}');
+        const jsonList = Array.isArray(jsonRaw) ? jsonRaw : [jsonRaw];
+
+        jsonList.forEach(json => {
+          // 提取圖片
+          const images = json.image || json.photos || [];
+          if (Array.isArray(images)) {
+            images.forEach(img => {
+              if (typeof img === 'string' && img.includes('591.com.tw')) {
+                imageMap.set(img.split('!')[0], img);
+              }
+            });
+          } else if (typeof images === 'string' && images.includes('591.com.tw')) {
+            imageMap.set(images.split('!')[0], images);
+          }
+
+          // 提取硬性欄位 (SEO 資料)
+          if (json['@type'] === 'Product' || json['@type'] === 'Accommodation' || json['@type'] === 'Place') {
+            if (json.name) ruleData.title = json.name;
+            if (json.description) ruleData.description = json.description;
+            if (json.offers && json.offers.price) ruleData.price = parseFloat(json.offers.price);
+            if (json.address) ruleData.address = json.address.streetAddress || json.address.name || json.address;
+          }
+        });
       } catch (e) {}
     });
+
+    // 備援：使用 Cheerio 從 DOM 提取硬性欄位 (針對 591 特徵)
+    if (!ruleData.title) ruleData.title = $('title').text().replace(" - 591租屋網", "");
+    
+    // 尋找坪數 (通常包含 "坪")
+    const sizeMatch = $('body').text().match(/([0-9.]+)\s*坪/);
+    if (sizeMatch) ruleData.size = sizeMatch[1];
+
+    // 尋找樓層 (通常包含 "樓")
+    const floorMatch = $('body').text().match(/([0-9]+)\s*樓\s*\/\s*([0-9]+)\s*樓/);
+    if (floorMatch) {
+      ruleData.floor = `${floorMatch[1]}/${floorMatch[2]}`;
+    }
+
+    // 使用 Cheerio 從 DOM 提取設備 (針對 591 特徵，排除刪除項)
+    $('.facility.service-facility dl').each((_, el) => {
+      const $dl = $(el);
+      const isDel = $dl.hasClass('del');
+      let text = $dl.find('dd.text').text().trim();
+      
+      if (text && !isDel) {
+        // 名稱映射，對齊用戶偏好的標籤
+        if (text === "床") text = "床組";
+        if (text === "桌椅") text = "書桌";
+        if (text === "1陽台") text = "陽台";
+        
+        ruleData.amenities.push(text);
+      }
+    });
+
+    // 如果精準抓取失敗，使用關鍵字掃描備援
+    if (ruleData.amenities.length === 0) {
+      const KNOWN_AMENITIES = ["冷氣", "冰箱", "洗衣機", "電視", "熱水器", "床", "衣櫃", "書桌", "沙發", "茶几", "餐桌", "飲水機", "微波爐", "電梯", "陽台", "網路", "第四台", "天然瓦斯", "桌椅"];
+      const bodyTextForRules = $('body').text();
+      KNOWN_AMENITIES.forEach(app => {
+        if (bodyTextForRules.includes(app)) {
+          let mappedApp = app;
+          if (app === "床") mappedApp = "床組";
+          if (app === "桌椅") mappedApp = "書桌";
+          ruleData.amenities.push(mappedApp);
+        }
+      });
+    }
+
+    ruleData.images = Array.from(imageMap.values());
 
     // 方法 B: 寬鬆 Regex 匹配 (作為備援)
     const imageRegex = /https?:\/\/[a-z0-9.]+\.591\.com\.tw\/house\/[0-9]{4}\/[0-9/]+\/[0-9]+[^\"' \n\r<>\\)]+/g;
@@ -166,7 +235,8 @@ export async function scrape591(url: string) {
       url,
       images: uniqueImages,
       lat,
-      lng
+      lng,
+      ruleData
     };
   } catch (error) {
     console.error("591 Scraper error:", error);
