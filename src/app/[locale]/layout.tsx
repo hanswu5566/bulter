@@ -5,7 +5,6 @@ import {NextIntlClientProvider} from 'next-intl';
 import {getMessages} from 'next-intl/server';
 import {notFound} from 'next/navigation';
 import {routing} from '@/i18n/routing';
-import AIButler from "@/components/AIButler";
 import Navbar from "@/components/Navbar";
 import { Providers } from "@/components/Providers";
 
@@ -21,8 +20,9 @@ const notoIsTC = Noto_Sans_TC({
 });
 
 export const metadata: Metadata = {
-  title: "AI House Rent - 智慧租屋管家",
-  description: "Gemini AI 驅動的智慧租屋平台",
+  title: "Butler. - 智慧租屋",
+  description: "AI 驅動的智慧租屋體驗",
+  manifest: "/manifest.json",
 };
 
 export default async function RootLayout({
@@ -52,7 +52,6 @@ export default async function RootLayout({
           <Providers>
             <Navbar />
             {children}
-            {/* <AIButler /> */}
           </Providers>
         </NextIntlClientProvider>
       </body>

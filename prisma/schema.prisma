@@ -32,7 +32,7 @@ model User {
   sessions      Session[]
   listings      Listing[] @relation("LandlordListings")
   reports       InspectionReport[]
-  appointments  Appointment[]
+  bookings      Booking[]
   listingStatuses UserListingStatus[]
   
   createdAt     DateTime  @default(now())
@@ -92,7 +92,7 @@ model Listing {
   landlord      User?     @relation("LandlordListings", fields: [landlordId], references: [id])
   
   reports       InspectionReport[]
-  appointments  Appointment[]
+  bookings      Booking[]
   userStatuses  UserListingStatus[]
   
   createdAt     DateTime  @default(now())
@@ -123,7 +123,7 @@ enum BookingStatus {
   CANCELLED
 }
 
-model Appointment {
+model Booking {
   id          String        @id @default(cuid())
   tenantId    String
   landlordId  String
@@ -141,8 +141,8 @@ model Appointment {
 
 model InspectionReport {
   id            String      @id @default(cuid())
-  appointmentId String?     @unique
-  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  bookingId     String?     @unique
+  booking       Booking?    @relation(fields: [bookingId], references: [id])
   
   listingId     String
   listing       Listing     @relation(fields: [listingId], references: [id])

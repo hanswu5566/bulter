@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Loader2, Sparkles, ChevronRight, RotateCcw, Search, MessageSquarePlus, Check, Lightbulb, ClipboardList, ClipboardCheck } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { usePathname, useParams } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 
 // --- Custom Butler Icon (Simple & Iconic) ---
 const ButlerIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
@@ -16,6 +16,44 @@ const ButlerIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
     <path d="M10 14.5l2 1 2-1-2 1-2-1z" fill="currentColor" />
   </svg>
 );
+
+const LOCAL_INTERVIEW_STEPS = [
+  {
+    step: 1,
+    field: "budget",
+    question: "您的每月最高租屋預算範圍大約是多少？",
+    options: ["15,000 以下", "15,000 - 25,000", "25,000 - 35,000", "35,000 以上"],
+    mode: "SINGLE" as const
+  },
+  {
+    step: 2,
+    field: "environment",
+    question: "請問您偏好哪些「大樓服務」與「理想居住氛圍」？（可多選）",
+    options: ["電梯", "垃圾代收", "管理員代收件", "獨立陽台", "台水台電計費", "網路寬頻", "安靜巷弄", "採光優越", "高樓層景觀", "新屋", "通風良好", "純住宅區"],
+    mode: "MULTIPLE" as const
+  },
+  {
+    step: 3,
+    field: "hardware",
+    question: "請問您需要房東提供哪些房源「必備家具與家電設備」？（可多選）",
+    options: ["冷氣", "冰箱", "洗衣機", "電視", "熱水器", "天然瓦斯", "床組", "衣櫃", "沙發", "書桌"],
+    mode: "MULTIPLE" as const
+  },
+  {
+    step: 4,
+    field: "lifestyle",
+    question: "您的「生活習慣」與「周邊生活機能」有哪些需要管家特別注意？（可多選）",
+    options: ["可養寵物", "可開伙", "近便利商店", "近超市", "樓下有宵夜", "附近有公園"],
+    mode: "MULTIPLE" as const
+  },
+  {
+    step: 5,
+    field: "transit",
+    question: "最後，請告訴我們您每天出行的「交通偏好」與車位需求？（可多選）",
+    options: ["近捷運 (5min內)", "近捷運 (10min內)", "好停機車", "有平面車位", "近公車站"],
+    mode: "MULTIPLE" as const
+  }
+];
 
 type ButlerView = "MENU" | "DIAGNOSIS" | "OPTIMIZATION" | "INSPECTION" | "INTERVIEW";
 
@@ -41,13 +79,30 @@ export default function AIButler() {
   const [multiSelectItems, setMultiSelectItems] = useState<string[]>([]);
   const [isInterviewFinished, setIsInterviewFinished] = useState(false);
 
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [minBudgetInput, setMinBudgetInput] = useState("");
+  const [maxBudgetInput, setMaxBudgetInput] = useState("");
   const [diagnosisData, setDiagnosisData] = useState<any>(null);
   const [optimizationData, setOptimizationData] = useState<any>(null);
   const [inspectionData, setInspectionData] = useState<any>(null);
 
   const role = "TENANT";
-
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Auto-scroll to the bottom whenever new messages, loading states, or options appear
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        scrollToBottom();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [messages, loading, suggestedOptions, isOpen]);
 
   // Handle Session Persistence & History Loading
   useEffect(() => {
@@ -83,7 +138,6 @@ export default function AIButler() {
 
   // Reset chat if role changes to prevent context mixup
   useEffect(() => {
-    // Only reset if we actually have messages and it's not the initial load
     if (isHistoryLoaded && messages.length > 0) {
       resetToMenu();
     }
@@ -127,15 +181,17 @@ export default function AIButler() {
   // --- Actions ---
   const handleAction = async (action: string) => {
     if (!session) {
-      setMessages([{ role: "assistant", content: "🔒 請先登入會員以使用 Butler 管家服務。" }]);
+      signIn("google");
       return;
     }
 
     if (action === "START_INTERVIEW") {
       setView("INTERVIEW");
-      setMessages([]);
+      setCurrentStep(1);
+      setMessages([{ role: "assistant", content: LOCAL_INTERVIEW_STEPS[0].question }]);
+      setSuggestedOptions(LOCAL_INTERVIEW_STEPS[0].options);
+      setSelectionMode(LOCAL_INTERVIEW_STEPS[0].mode);
       setIsInterviewFinished(false);
-      await nextInterviewStep();
       return;
     }
 
@@ -203,42 +259,92 @@ export default function AIButler() {
     setLoading(false);
   };
 
-  const nextInterviewStep = async (currentResponse?: string) => {
-    if (!session) {
-      setMessages([{ role: "assistant", content: "🔒 請先登入會員以使用 Butler 管家服務。" }]);
+  const handleCustomBudgetSubmit = () => {
+    const min = parseInt(minBudgetInput, 10);
+    const max = parseInt(maxBudgetInput, 10);
+    
+    if (isNaN(min) || isNaN(max)) {
+      setMessages(prev => [
+        ...prev,
+        { role: "assistant", content: "⚠️ 請在「最低」與「最高」兩個欄位中都輸入預算數字！" }
+      ]);
       return;
     }
-    setLoading(true);
-    if (currentResponse) {
-      setMessages(prev => [...prev, { role: "user", content: currentResponse }]);
+    
+    if (min < 3000) {
+      setMessages(prev => [
+        ...prev,
+        { role: "assistant", content: `⚠️ 最低預算 NT$ ${min.toLocaleString()} 元過低，請輸入大於 3,000 元的合理金額！` }
+      ]);
+      return;
+    }
+    
+    if (max > 300000) {
+      setMessages(prev => [
+        ...prev,
+        { role: "assistant", content: `⚠️ 最高預算 NT$ ${max.toLocaleString()} 元過高，請輸入小於 300,000 元的合理金額！` }
+      ]);
+      return;
+    }
+    
+    if (min >= max) {
+      setMessages(prev => [
+        ...prev,
+        { role: "assistant", content: "⚠️ 錯誤：最低預算必須「小於」最高預算！" }
+      ]);
+      return;
+    }
+    
+    const displayString = `預算 NT$ ${min.toLocaleString()} - ${max.toLocaleString()} 元`;
+    
+    setMinBudgetInput("");
+    setMaxBudgetInput("");
+    
+    nextInterviewStep(displayString);
+  };
+
+  const nextInterviewStep = async (currentResponse?: string) => {
+    if (!session) {
+      signIn("google");
+      return;
     }
 
-    try {
-      const res = await fetch("/api/ai/interview/next", {
+    if (currentResponse) {
+      // Append user response to messages instantly!
+      setMessages(prev => [...prev, { role: "user", content: currentResponse }]);
+      
+      // 1. Calculate and transition to Next Step 100% locally inside React (0ms latency!)
+      const nextStepIdx = currentStep; // Since currentStep is 1-indexed, it is the next step's 0-based index!
+      const isFinished = nextStepIdx >= LOCAL_INTERVIEW_STEPS.length;
+      
+      if (isFinished) {
+        setIsInterviewFinished(true);
+        const finishMsg = "太棒了！我已經記錄下您的所有偏好，正在為您準備契合度比對...";
+        setMessages(prev => [...prev, { role: "assistant", content: finishMsg }]);
+        setSuggestedOptions([]);
+        
+        // Dispatch custom event to trigger pending analysis instantly on parent pages!
+        window.dispatchEvent(new CustomEvent('butler-interview-finished'));
+        
+        setTimeout(() => {
+          handleClose();
+        }, 2000);
+      } else {
+        const nextStep = LOCAL_INTERVIEW_STEPS[nextStepIdx];
+        setCurrentStep(nextStep.step);
+        setMessages(prev => [...prev, { role: "assistant", content: nextStep.question }]);
+        setSuggestedOptions(nextStep.options);
+        setSelectionMode(nextStep.mode);
+        setMultiSelectItems([]);
+      }
+      
+      // 2. Silent Background Save: Push the answer to the database in the background without locking the UI or showing loader!
+      fetch("/api/ai/interview/next", {
         method: "POST",
         body: JSON.stringify({ sessionId, message: currentResponse, role, locale }),
         headers: { "Content-Type": "application/json" },
-      });
-      const resData = await res.json();
-      
-      if (resData.success) {
-        const { question, options, mode, isFinished, quota: newQuota } = resData.data;
-        setMessages(prev => [...prev, { role: "assistant", content: question }]);
-        setSuggestedOptions(options || []);
-        setSelectionMode(mode || "SINGLE");
-        setMultiSelectItems([]);
-        setIsInterviewFinished(isFinished);
-        if (newQuota) setQuota(newQuota);
-      } else if (res.status === 429) {
-        setMessages(prev => [...prev, { role: "assistant", content: `⚠️ ${resData.message || "Too many requests. Please slow down."}` }]);
-      } else if (res.status === 403 && resData.error === "QUOTA_EXCEEDED") {
-        if (resData.quota) setQuota(resData.quota);
-        setMessages(prev => [...prev, { role: "assistant", content: `🚫 ${resData.message || "Daily quota exceeded."}` }]);
-      } else if (res.status === 401) {
-        setMessages(prev => [...prev, { role: "assistant", content: `🔒 請先登入會員以使用 Butler 管家服務。` }]);
-      }
-    } catch (err) { console.error(err); }
-    setLoading(false);
+      }).catch(err => console.error("[Background Save Error]", err));
+    }
   };
 
   const toggleMultiItem = (item: string) => {
@@ -256,18 +362,35 @@ export default function AIButler() {
     localStorage.setItem("butler_session_id", sid);
   };
 
-  return (
-    <>
-      <button onClick={() => setIsOpen(true)} className="butler-fab group z-50">
-        <ButlerIcon className="w-8 h-8" />
-        <span className="absolute right-24 bg-on-surface text-white px-4 py-2 rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap text-sm font-bold pointer-events-none">{t('fab_help')}</span>
-      </button>
+  const handleClose = () => {
+    setIsOpen(false);
+    setTimeout(() => {
+      setView("MENU");
+    }, 400);
+  };
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="fixed bottom-28 right-10 w-[calc(100vw-3rem)] md:w-80 bg-white/90 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-white/20 z-50 flex flex-col overflow-hidden h-[500px]">
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        /* Immersive Center Flex Container to prevent all CSS transform conflicts! */
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/30 backdrop-blur-xs z-50 flex items-center justify-center p-4 pointer-events-auto"
+          onClick={() => handleClose()}
+        >
+          {/* Center Modal Card Container */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+            animate={{ opacity: 1, scale: 1, y: 0 }} 
+            exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+            transition={{ type: "spring", damping: 25, stiffness: 350 }}
+            className="w-full md:w-[520px] h-[550px] bg-white/95 backdrop-blur-2xl rounded-[2.5rem] border-2 border-white/25 shadow-2xl shadow-black/10 flex flex-col overflow-hidden pointer-events-auto"
+            onClick={(e) => e.stopPropagation()} // Stop click event from closing the backdrop modal
+          >
             {/* Header */}
-            <div className="bg-gradient-to-br from-primary to-[#B85A15] p-4 text-white flex items-center justify-between">
+            <div className="bg-gradient-to-br from-primary to-[#B85A15] p-5 text-white flex items-center justify-between select-none">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center"><ButlerIcon className="w-5 h-5 text-white" /></div>
                 <div>
@@ -277,30 +400,55 @@ export default function AIButler() {
                   </div>
                 </div>
               </div>
-              <button onClick={() => setIsOpen(false)} className="hover:bg-white/10 p-1.5 rounded-full transition-colors"><X className="w-4 h-4" /></button>
+              <button onClick={() => handleClose()} className="hover:bg-white/10 p-1.5 rounded-full transition-colors cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-surface/30">
+            {/* Chat messages body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-surface/30">
               {messages.map((m, idx) => (
                 <div key={idx} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[90%] p-3 text-[13px] leading-relaxed ${m.role === "user" ? "bg-primary text-white rounded-2xl rounded-br-none shadow-md shadow-primary/10" : "bg-card text-on-surface shadow-sm rounded-2xl rounded-bl-none border border-gray-100 whitespace-pre-wrap"}`}>{m.content}</div>
+                  <div className={`max-w-[90%] p-3.5 text-[13px] leading-relaxed ${m.role === "user" ? "bg-primary text-white rounded-2xl rounded-br-none shadow-md shadow-primary/10 font-bold" : "bg-card text-on-surface shadow-sm rounded-2xl rounded-bl-none border border-gray-100 whitespace-pre-wrap font-bold"}`}>{m.content}</div>
                 </div>
               ))}
               
               {view === "INTERVIEW" && suggestedOptions.length > 0 && !loading && !isInterviewFinished && (
-                <div className="flex flex-wrap gap-1.5 pt-2">
+                <div className="flex flex-wrap gap-1.5 pt-2 select-none">
                   {suggestedOptions.map((opt, idx) => {
                     const optValue = typeof opt === 'object' ? (opt as any).content || (opt as any).label || JSON.stringify(opt) : String(opt);
                     const isSelected = multiSelectItems.includes(optValue);
                     return (
                       <button 
                         key={`${idx}-${optValue}`} 
-                        onClick={() => selectionMode === "SINGLE" ? nextInterviewStep(optValue) : toggleMultiItem(optValue)} 
-                        className={`px-3 py-1.5 rounded-full border text-[11px] font-bold transition-all shadow-sm flex items-center gap-1 ${
-                          isSelected ? 'bg-primary border-primary text-white' : 'bg-white border-primary/20 text-primary hover:bg-primary/5'
+                        onClick={() => {
+                          if (currentStep === 1) {
+                            if (optValue === "15,000 以下") {
+                              setMinBudgetInput("0");
+                              setMaxBudgetInput("15000");
+                              nextInterviewStep("預算 NT$ 0 - 15,000 元");
+                            } else if (optValue === "15,000 - 25,000") {
+                              setMinBudgetInput("15000");
+                              setMaxBudgetInput("25000");
+                              nextInterviewStep("預算 NT$ 15,000 - 25,000 元");
+                            } else if (optValue === "25,000 - 35,000") {
+                              setMinBudgetInput("25000");
+                              setMaxBudgetInput("35000");
+                              nextInterviewStep("預算 NT$ 25,000 - 35,000 元");
+                            } else if (optValue === "35,000 以上") {
+                              setMinBudgetInput("35000");
+                              setMaxBudgetInput("200000");
+                              nextInterviewStep("預算 NT$ 35,000 - 200,000 元");
+                            }
+                          } else {
+                            selectionMode === "SINGLE" ? nextInterviewStep(optValue) : toggleMultiItem(optValue);
+                          }
+                        }} 
+                        className={`px-4 py-2.5 rounded-2xl border-2 text-xs font-black transition-all duration-300 shadow-sm flex items-center gap-1.5 cursor-pointer hover:scale-[1.03] active:scale-95 ${
+                          isSelected 
+                            ? 'bg-[#D2691E] border-[#D2691E] text-white shadow-md shadow-[#D2691E]/15' 
+                            : 'bg-orange-50/30 border-orange-500/15 text-[#D2691E] hover:bg-[#D2691E] hover:text-white hover:border-[#D2691E]'
                         }`}
                       >
-                        {isSelected && <Check className="w-2.5 h-2.5" />}
+                        {isSelected && <Check className="w-3.5 h-3.5" />}
                         {optValue}
                       </button>
                     );
@@ -308,9 +456,12 @@ export default function AIButler() {
                 </div>
               )}
               {loading && <div className="flex justify-start"><div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-50"><Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /></div></div>}
+              {/* Scroll Anchor */}
+              <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-4 bg-white border-t border-gray-100">
+            {/* Input footer */}
+            <div className="p-5 bg-white border-t border-gray-100">
               {quota && !["hanswu@google.com", "shankesleroux8988@gmail.com"].includes(session?.user?.email || "") && (
                 <div className="flex items-center justify-between mb-2 px-1">
                   <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Daily Quota</div>
@@ -323,33 +474,57 @@ export default function AIButler() {
               {view === "INTERVIEW" ? (
                 <div className="space-y-3">
                   {!isInterviewFinished ? (
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        value={input} 
-                        onChange={(e) => setInput(e.target.value)} 
-                        disabled={quota !== null && quota.used >= quota.limit}
-                        onKeyDown={(e) => e.key === "Enter" && (nextInterviewStep((selectionMode === "MULTIPLE" && multiSelectItems.length > 0) ? [...multiSelectItems, ...(input.trim() ? [input.trim()] : [])].join("、") : input), setInput(""))} 
-                        placeholder={quota !== null && quota.used >= quota.limit ? "今日額度已用完" : t('input_placeholder')} 
-                        className="flex-1 bg-gray-50 border-none rounded-xl px-4 py-2.5 text-[13px] focus:ring-1 focus:ring-primary outline-none disabled:opacity-50" 
-                      />
-                      {selectionMode === "MULTIPLE" && (multiSelectItems.length > 0 || input.trim() !== "") ? (
-                        <button onClick={() => { nextInterviewStep([...multiSelectItems, ...(input.trim() ? [input.trim()] : [])].join("、")); setInput(""); }} className={`px-3 rounded-xl flex items-center gap-1.5 text-[11px] font-bold text-white transition-colors ${input.trim() !== "" ? 'bg-primary' : 'bg-success'}`}>
-                          {input.trim() !== "" ? <Send className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
-                          {input.trim() !== "" ? commonT('send') : t('btn_confirm_selection')}
+                    currentStep === 1 ? (
+                      /* Step 1: Render dual-box budget inputs side-by-side for direct number typing! */
+                      <div className="flex flex-col gap-3 select-none">
+                        <div className="flex gap-2 items-center">
+                          <input 
+                            type="number" 
+                            placeholder="最低預算 (NT$)" 
+                            value={minBudgetInput}
+                            onChange={(e) => setMinBudgetInput(e.target.value)}
+                            className="w-1/2 bg-gray-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-[#D2691E]/30 outline-none font-black text-center shadow-inner"
+                          />
+                          <span className="text-gray-400 text-xs font-black select-none">~</span>
+                          <input 
+                            type="number" 
+                            placeholder="最高預算 (NT$)" 
+                            value={maxBudgetInput}
+                            onChange={(e) => setMaxBudgetInput(e.target.value)}
+                            className="w-1/2 bg-gray-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-[#D2691E]/30 outline-none font-black text-center shadow-inner"
+                          />
+                        </div>
+                        <button 
+                          onClick={handleCustomBudgetSubmit}
+                          className="w-full py-3.5 rounded-2xl bg-[#D2691E] hover:bg-[#b25915] text-white text-xs font-black shadow-md active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Check className="w-4 h-4" />
+                          確認自訂預算區間
                         </button>
-                      ) : (
-                        <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => { nextInterviewStep(input); setInput(""); }} className="bg-primary text-white p-2.5 rounded-xl disabled:opacity-50"><Send className="w-5 h-5" /></button>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      /* Steps 2, 3, 4, 5: Hide input bar and render the premium, wide confirm button! */
+                      <button 
+                        disabled={multiSelectItems.length === 0}
+                        onClick={() => nextInterviewStep(multiSelectItems.join("、"))} 
+                        className={`w-full py-4 rounded-2xl font-black text-xs shadow-md active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 text-white border-transparent ${
+                          multiSelectItems.length === 0
+                            ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
+                            : "bg-[#D2691E] hover:bg-[#b25915] shadow-lg shadow-[#D2691E]/10"
+                        }`}
+                      >
+                        <Check className="w-4.5 h-4.5" />
+                        確認選取 ({multiSelectItems.length} 項) 並進入下一單元
+                      </button>
+                    )
                   ) : (
-                    <button onClick={resetToMenu} className="w-full p-3 rounded-xl bg-on-surface text-white text-sm font-bold flex items-center justify-center gap-2"><RotateCcw className="w-3.5 h-3.5" /> {t('btn_back_to_menu')}</button>
+                    <button onClick={resetToMenu} className="w-full p-4.5 rounded-2xl bg-on-surface text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-800 transition-all active:scale-98"><RotateCcw className="w-3.5 h-3.5" /> {t('btn_back_to_menu')}</button>
                   )}
                 </div>
               ) : (
                 <div className="space-y-3">
                   {context === "LISTING_DETAIL" && (
-                    <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => handleAction("DIAGNOSE")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10 disabled:opacity-50">
+                    <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => handleAction("DIAGNOSE")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10 disabled:opacity-50 cursor-pointer">
                       <Sparkles className="absolute -right-2 -top-2 w-16 h-16 opacity-10 rotate-12" />
                       <div className="flex items-center gap-3 relative z-10">
                         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
@@ -364,7 +539,7 @@ export default function AIButler() {
                     </button>
                   )}
                   {context === "LISTING_CREATE" && (
-                    <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => handleAction("OPTIMIZE")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10 disabled:opacity-50">
+                    <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => handleAction("OPTIMIZE")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10 disabled:opacity-50 cursor-pointer">
                       <Lightbulb className="absolute -right-2 -top-2 w-16 h-16 opacity-10 rotate-12" />
                       <div className="flex items-center gap-3 relative z-10">
                         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
@@ -379,7 +554,7 @@ export default function AIButler() {
                     </button>
                   )}
                   {context === "INSPECTION" && (
-                    <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => handleAction("INSPECT")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10 disabled:opacity-50">
+                    <button disabled={quota !== null && quota.used >= quota.limit} onClick={() => handleAction("INSPECT")} className="w-full text-left p-4 rounded-[1.5rem] bg-primary text-white shadow-xl shadow-primary/20 hover:translate-y-[-2px] active:translate-y-0 transition-all group relative overflow-hidden border border-white/10 disabled:opacity-50 cursor-pointer">
                       <ClipboardList className="absolute -right-2 -top-2 w-16 h-16 opacity-10 rotate-12" />
                       <div className="flex items-center gap-3 relative z-10">
                         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
@@ -396,7 +571,7 @@ export default function AIButler() {
                   <button 
                     disabled={quota !== null && quota.used >= quota.limit}
                     onClick={() => handleAction("START_INTERVIEW")} 
-                    className={`w-full text-left transition-all group relative overflow-hidden disabled:opacity-50 ${
+                    className={`w-full text-left transition-all group relative overflow-hidden disabled:opacity-50 cursor-pointer ${
                       context === "GENERAL" ? 'p-4 rounded-[1.5rem] bg-primary text-white shadow-lg' : 'p-3 rounded-xl bg-gray-50 text-gray-400 hover:bg-gray-100'
                     }`}
                   >
@@ -417,8 +592,8 @@ export default function AIButler() {
               )}
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

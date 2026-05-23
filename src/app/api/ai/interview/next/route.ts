@@ -1,6 +1,6 @@
 import { withErrorHandler, successResponse, errorResponse, withRateLimit } from "@/lib/api-utils";
 import { ButlerService } from "@/lib/services/butler.service";
-import { getDailyUsage } from "@/lib/rate-limit";
+import { checkQuotaOnly, consumeTokens } from "@/lib/quota";
 
 export async function POST(req: Request) {
   return withErrorHandler(async () => {
@@ -15,21 +15,14 @@ export async function POST(req: Request) {
       const userId = session.user.id;
       const userEmail = session.user.email;
 
-      // 3. Daily Quota Check (Max 3 messages per day)
-      // Special: Unlimited for specific emails
+      // 3. Dynamic Unified SaaS Token Quota check!
       const UNLIMITED_EMAILS = ["hanswu@google.com", "shankesleroux8988@gmail.com"];
       const isUnlimited = userEmail && UNLIMITED_EMAILS.includes(userEmail);
 
-      const usedQuota = await getDailyUsage(userId);
-      const QUOTA_LIMIT = 5;
+      const quota = await checkQuotaOnly(userId, "AI_INTERVIEW");
 
-      if (!isUnlimited && usedQuota >= QUOTA_LIMIT) {
-        return NextResponse.json({
-          success: false,
-          error: "QUOTA_EXCEEDED",
-          message: "You've used your daily 5 messages. Upgrade for more!",
-          quota: { used: usedQuota, limit: QUOTA_LIMIT }
-        }, { status: 403 });
+      if (!isUnlimited && !quota.allowed) {
+        return errorResponse(`您的每日代幣點數不足！發送對話需要 ${quota.cost} 點，您今日已使用 ${quota.used} / ${quota.max} 點。`, 403);
       }
 
       // 4. Execute Chat
@@ -42,9 +35,10 @@ export async function POST(req: Request) {
       });
 
       // 5. Success with quota info
+      await consumeTokens(userId, "AI_INTERVIEW");
       return successResponse({
         ...data,
-        quota: { used: usedQuota + 1, limit: QUOTA_LIMIT }
+        quota: { used: quota.used + quota.cost, limit: quota.max }
       });
     });
   });

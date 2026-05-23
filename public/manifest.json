@@ -1,10 +1,10 @@
 {
-  "name": "AI House Rent",
-  "short_name": "AI租屋",
-  "description": "智慧租屋管家平台",
+  "name": "Butler. 智慧租屋管家",
+  "short_name": "Butler",
+  "description": "AI 驅動的智慧租屋體驗",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FFFDD0",
+  "background_color": "#FFFFFF",
   "theme_color": "#D2691E",
   "icons": [
     {

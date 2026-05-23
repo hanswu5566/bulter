@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Mail, Shield, Loader2, Sparkles, Check, ArrowLeftRight, ArrowLeft } from "lucide-react";
+import { User, Mail, Shield, Loader2, Sparkles, Check, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter, Link } from "@/i18n/routing";
 
@@ -11,9 +11,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [isSwitching, setIsSwitching] = useState(false);
   const [showSavedToast, setShowSavedToast] = useState(false);
-  const role = "TENANT";
 
   useEffect(() => {
     if (session?.user?.name) {
@@ -39,28 +37,6 @@ export default function ProfilePage() {
       console.error("Save profile failed", err);
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleRoleSwitch = async () => {
-    setIsSwitching(true);
-    const newRole = role === "TENANT" ? "LANDLORD" : "TENANT";
-    try {
-      const res = await fetch("/api/user/preferences", {
-        method: "PATCH",
-        body: JSON.stringify({ role: newRole }),
-        headers: { "Content-Type": "application/json" },
-      });
-      const resData = await res.json();
-      
-      if (resData.success) {
-        await update({ role: newRole });
-        router.refresh();
-      }
-    } catch (err) {
-      console.error("Failed to update role", err);
-    } finally {
-      setIsSwitching(false);
     }
   };
 
@@ -161,34 +137,7 @@ export default function ProfilePage() {
               <p className="text-[10px] text-gray-400 mt-1 ml-2">電子郵件由登入服務提供，無法在此修改。</p>
             </div>
 
-            {/* Role Switch */}
-            {false && (
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">使用者角色</label>
-              <div className="bg-gray-50 p-4 rounded-xl flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-on-surface">
-                    當前身分：房客
-                  </div>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    切換身分以使用不同的功能。
-                  </p>
-                </div>
-                <button 
-                  onClick={handleRoleSwitch}
-                  disabled={isSwitching}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-on-surface text-white text-sm font-black hover:opacity-90 transition-all cursor-pointer shadow-md disabled:opacity-50"
-                >
-                  {isSwitching ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  ) : (
-                    <ArrowLeftRight className="w-4 h-4 text-primary" />
-                  )}
-                  切換為{role === "TENANT" ? "房東" : "房客"}
-                </button>
-              </div>
-            </div>
-            )}
+
           </div>
 
           {/* Save Button */}

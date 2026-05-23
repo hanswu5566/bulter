@@ -1,16 +1,15 @@
 "use client";
 
 import { 
-  User, ArrowLeftRight, LogIn, LogOut, 
+  User, LogIn, LogOut, 
   Settings, List, PlusCircle, ClipboardCheck,
-  Compass, LayoutDashboard, Loader2
+  Compass, LayoutDashboard, Loader2, Tags
 } from "lucide-react";
 import { Link, usePathname, useRouter } from "@/i18n/routing";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import ConfirmationModal from "./ConfirmationModal";
 
 // --- Custom Butler Icon (Matching the FAB style) ---
 const ButlerIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
@@ -29,46 +28,22 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSwitching, setIsSwitching] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const role = "TENANT";
-
-  const handleRoleSwitch = async () => {
-    setIsSwitching(true);
-    const newRole = role === "TENANT" ? "LANDLORD" : "TENANT";
-    try {
-      const res = await fetch("/api/user/preferences", {
-        method: "PATCH",
-        body: JSON.stringify({ role: newRole }),
-        headers: { "Content-Type": "application/json" },
-      });
-      const resData = await res.json();
-      
-      if (resData.success) {
-        // Update session and wait for it to finish
-        await update({ role: newRole });
-        router.refresh();
-      }
-    } catch (err) {
-      console.error("Failed to update role", err);
-    } finally {
-      setIsSwitching(false);
-    }
-  };
-
-  const toggleRole = async () => {
-    if (isSwitching) return;
-    
-    // Check if AI Butler has messages
-    if ((window as any).__BUTLER_HAS_MESSAGES__) {
-      setShowConfirmModal(true);
-      return;
-    }
-
-    await handleRoleSwitch();
-  };
-
+  const [quota, setQuota] = useState<{ used: number; max: number } | null>(null); // ⚡ Global SaaS Quota state
   const isActive = (path: string) => pathname.startsWith(path);
+
+  // Fetch fresh dynamic user quota on mount/session change
+  useEffect(() => {
+    if (session) {
+      fetch("/api/user/quota")
+        .then(res => res.json())
+        .then(res => {
+          if (res.success && res.data) {
+            setQuota(res.data);
+          }
+        })
+        .catch(err => console.error("Failed to fetch quota in Navbar:", err));
+    }
+  }, [session, pathname]); // ⚡ Re-fetch when pathname changes to stay in sync!
 
   return (
     <>
@@ -103,16 +78,34 @@ export default function Navbar() {
 
           {/* RIGHT: Role-based Workspace & Profile */}
           <div className="flex items-center gap-4">
-            {session && role === "TENANT" && (
+            {session && (
               <div className="hidden md:flex items-center bg-gray-50 p-1.5 rounded-2xl border border-gray-100 gap-1">
+                  {quota && (
+                    <div 
+                      className="flex items-center gap-1 px-3 py-2 rounded-xl text-[10px] font-black text-primary bg-primary/10 border border-primary/10 select-none mr-1"
+                      title="本月剩餘 AI 房源解析額度"
+                    >
+                      <span>⚡ AI 額度: {Math.max(0, quota.max - quota.used)} / {quota.max}</span>
+                    </div>
+                  )}
                   <Link 
-                    href="/reports" 
+                    href="/listings" 
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                      isActive('/reports') ? 'bg-white shadow-sm text-on-surface' : 'text-gray-400 hover:text-on-surface'
+                      isActive('/listings') ? 'bg-white shadow-sm text-on-surface' : 'text-gray-400 hover:text-on-surface'
                     }`}
                   >
-                    <ClipboardCheck className="w-3.5 h-3.5" />
-                    {t('reports')}
+                    <Compass className="w-3.5 h-3.5" />
+                    房源比較庫
+                  </Link>
+
+                  <Link 
+                    href="/user/preferences" 
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                      isActive('/user/preferences') ? 'bg-white shadow-sm text-on-surface' : 'text-gray-400 hover:text-on-surface'
+                    }`}
+                  >
+                    <Tags className="w-3.5 h-3.5" />
+                    {t('preferences')}
                   </Link>
               </div>
             )}
@@ -123,19 +116,6 @@ export default function Navbar() {
               <div className="w-10 h-10 bg-gray-50 rounded-full animate-pulse" />
             ) : session ? (
               <div className="flex items-center gap-3">
-                {/* Hidden Role Switch for MVP focus */}
-                {/* <button 
-                  onClick={toggleRole}
-                  disabled={isSwitching}
-                  className="hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-on-surface text-white text-sm font-black hover:opacity-90 transition-all cursor-pointer shadow-md disabled:opacity-50"
-                >
-                  {isSwitching ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  ) : (
-                    <ArrowLeftRight className="w-4 h-4 text-primary" />
-                  )}
-                  {role === "TENANT" ? t('switch_landlord') : t('switch_tenant')}
-                </button> */}
                 
                 <div className="relative">
                   <button 
@@ -162,8 +142,15 @@ export default function Navbar() {
                           <div className="px-5 py-4 bg-gray-50/50 rounded-2xl mb-2">
                             <div className="text-xs font-black text-on-surface truncate">{session.user?.name}</div>
                             <div className="text-[10px] text-gray-400 truncate mt-0.5">{session.user?.email}</div>
-                            <div className="mt-3 inline-flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 text-primary text-[9px] font-black rounded-full uppercase tracking-tighter">
-                              Elite Tenant
+                            <div className="flex flex-wrap gap-1.5 mt-3">
+                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 text-primary text-[9px] font-black rounded-full uppercase tracking-tighter">
+                                Elite Tenant
+                              </div>
+                              {quota && (
+                                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#D2691E]/15 text-[#D2691E] text-[9px] font-black rounded-full tracking-tighter select-none">
+                                  ⚡ 額度: {Math.max(0, quota.max - quota.used)} / {quota.max}
+                                </div>
+                              )}
                             </div>
                           </div>
                           
@@ -176,6 +163,15 @@ export default function Navbar() {
                             {t('profile')}
                           </Link>
                           
+                          <Link 
+                            href="/user/preferences"
+                            onClick={() => setIsMenuOpen(false)}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-colors mt-1"
+                          >
+                            <Tags className="w-4 h-4 text-gray-400" />
+                            {t('preferences')}
+                          </Link>
+
                           <button 
                             onClick={() => signOut()}
                             className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors mt-1"
@@ -200,15 +196,6 @@ export default function Navbar() {
           </div>
         </div>
       </nav>
-
-      <ConfirmationModal
-        isOpen={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
-        onConfirm={handleRoleSwitch}
-        title={commonT('warning')}
-        message={t('switch_role_confirm')}
-        isDanger={true}
-      />
     </>
   );
 }

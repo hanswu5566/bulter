@@ -7,8 +7,8 @@
   },
   "Navbar": {
     "brand_name": "Butler.",
-    "brand_subtitle": "AI Rental Concierge",
-    "title": "AI House Rent",
+    "brand_subtitle": "AI-Driven Smart Rental Experience",
+    "title": "Butler.",
     "explore": "Explore",
     "import": "Import",
     "reports": "Reports",
@@ -16,6 +16,7 @@
     "switch_tenant": "Switch Tenant",
     "login": "Login",
     "profile": "Profile",
+    "preferences": "Preferences",
     "logout": "Logout",
     "my_listings": "My Listings",
     "messages": "My Messages"
@@ -46,12 +47,12 @@
     "browse_listings": "Browse Listings",
     "start_import": "Publish Now",
     "manage_listings": "Manage My Listings",
-    "feature_1_title": "Zero-Friction Migration",
-    "feature_1_desc": "Paste any URL, and our AI automatically captures and structures the listing data.",
-    "feature_2_title": "AI Inspection Guide",
-    "feature_2_desc": "Your Butler accompanies you during viewings, guiding you through hidden details like water pressure and soundproofing.",
-    "feature_3_title": "Trust Matching",
-    "feature_3_desc": "Closing the loop with factual data to build a transparent rental ecosystem.",
+    "feature_1_title": "One-Click Listing Analysis",
+    "feature_1_desc": "Paste any 591 URL and our AI will instantly analyze the description, estimate hidden utility costs, and detect compliance risks.",
+    "feature_2_title": "On-Site Inspection Guide",
+    "feature_2_desc": "Let your Butler guide you through physical facts like water pressure and soundproofing, and use Multimodal AI to analyze structural defects.",
+    "feature_3_title": "Real Fact Sharing",
+    "feature_3_desc": "Factual viewing data submitted by tenants automatically feeds back to the platform, establishing a transparent, permanent house condition ledger.",
     "initial_interview_msg": "Hello! I am your AI Rental Butler. Before we begin, could you tell me your ideal budget and preferred areas?"
   },
   "AIButler": {

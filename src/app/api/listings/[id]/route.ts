@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
-import { MODELS, genAI, diagnoseMatchWithAI } from "@/lib/ai";
+import { MODELS, genAI, getFlatUserTags } from "@/lib/ai";
+import { calculateMatchScore } from "@/lib/matching";
 import { withErrorHandler, successResponse, errorResponse } from "@/lib/api-utils";
 import { deleteFiles, getSignedDownloadUrl } from "@/lib/storage";
 
@@ -13,11 +14,33 @@ export async function GET(
     const { id } = await params;
     const session = await auth();
     
+    // 1. Strict Authentication Check
+    if (!session?.user?.id) {
+      return errorResponse("Unauthorized. Please login first.", 401);
+    }
+
+    // 2. Collection Ownership (Access Control) Check
+    const userStatus = await db.userListingStatus.findUnique({
+      where: {
+        userId_listingId: {
+          userId: session.user.id,
+          listingId: id
+        }
+      }
+    });
+
+    if (!userStatus || userStatus.isRemoved) {
+      return errorResponse("Forbidden. You must analyze this listing on the home page first to add it to your collections.", 403);
+    }
+
     const listing = await db.listing.findUnique({
       where: { id },
       include: {
         landlord: { select: { id: true, name: true, image: true } },
         reports: {
+          where: {
+            tenantId: session.user.id
+          },
           orderBy: { createdAt: "desc" },
           take: 5,
         }
@@ -28,16 +51,91 @@ export async function GET(
       return errorResponse("Listing not found", 404);
     }
 
-    // Dynamic AI Diagnosis if user is logged in
+    // Dynamic local personalization matching based on standard tagEvaluation cached on the listing
     let matchResult = null;
+    let commuteTime = null;
     if (session?.user?.id) {
       const user = await db.user.findUnique({
         where: { id: session.user.id },
-        select: { aiTags: true }
+        select: { aiTags: true, baseProfile: true }
       });
 
-      if (user?.aiTags && Array.isArray(user.aiTags)) {
-        matchResult = await diagnoseMatchWithAI(user.aiTags as string[], listing);
+      if (user?.aiTags) {
+        matchResult = calculateMatchScore(user.aiTags, listing);
+      }
+
+      // Real Dynamic Google Transit & Driving & Scooter Commute calculation (Distance Matrix API)
+      if (listing.lat && listing.lng) {
+        const origin = `${listing.lat},${listing.lng}`;
+        const baseProf = user?.baseProfile as any;
+        const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || "";
+
+        if (GOOGLE_MAPS_API_KEY) {
+          if (baseProf?.commuteAddress) {
+            // Calculate precise commute to user's custom work/school address across 3 modes (Transit, Driving, Scooter)
+            try {
+              const dest = encodeURIComponent(baseProf.commuteAddress);
+              const transitUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${dest}&mode=transit&language=zh-TW&key=${GOOGLE_MAPS_API_KEY}`;
+              const drivingUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${dest}&mode=driving&language=zh-TW&key=${GOOGLE_MAPS_API_KEY}`;
+              const scooterUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${dest}&mode=driving&avoid=highways|tolls&language=zh-TW&key=${GOOGLE_MAPS_API_KEY}`;
+
+              const [resTransit, resDriving, resScooter] = await Promise.all([
+                fetch(transitUrl).then(r => r.json()),
+                fetch(drivingUrl).then(r => r.json()),
+                fetch(scooterUrl).then(r => r.json())
+              ]);
+
+              const elTransit = resTransit.rows?.[0]?.elements?.[0];
+              const elDriving = resDriving.rows?.[0]?.elements?.[0];
+              const elScooter = resScooter.rows?.[0]?.elements?.[0];
+
+              commuteTime = {
+                isCustom: true,
+                address: baseProf.commuteAddress,
+                transit: elTransit?.status === "OK" ? { duration: elTransit.duration.text, distance: elTransit.distance.text } : null,
+                driving: elDriving?.status === "OK" ? { duration: elDriving.duration.text, distance: elDriving.distance.text } : null,
+                scooter: elScooter?.status === "OK" ? { duration: elScooter.duration.text, distance: elScooter.distance.text } : null
+              };
+            } catch (err) {
+              console.error("Failed to calculate custom commute:", err);
+            }
+          } else {
+            // Fallback to calculating public transit commute to default hubs (Taipei Main Station & City Hall)
+            try {
+              const destA = encodeURIComponent("台北車站");
+              const destB = encodeURIComponent("市政府捷運站");
+              const transitUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${destA}|${destB}&mode=transit&language=zh-TW&key=${GOOGLE_MAPS_API_KEY}`;
+              const drivingUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${destA}|${destB}&mode=driving&language=zh-TW&key=${GOOGLE_MAPS_API_KEY}`;
+              const scooterUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${destA}|${destB}&mode=driving&avoid=highways|tolls&language=zh-TW&key=${GOOGLE_MAPS_API_KEY}`;
+
+              const [resTransit, resDriving, resScooter] = await Promise.all([
+                fetch(transitUrl).then(r => r.json()),
+                fetch(drivingUrl).then(r => r.json()),
+                fetch(scooterUrl).then(r => r.json())
+              ]);
+
+              if (resTransit.status === "OK") {
+                commuteTime = {
+                  isCustom: false,
+                  transit: {
+                    taipeiMain: resTransit.rows[0]?.elements[0]?.status === "OK" ? resTransit.rows[0].elements[0].duration.text : null,
+                    xinyi: resTransit.rows[0]?.elements[1]?.status === "OK" ? resTransit.rows[0].elements[1].duration.text : null
+                  },
+                  driving: {
+                    taipeiMain: resDriving.rows[0]?.elements[0]?.status === "OK" ? resDriving.rows[0].elements[0].duration.text : null,
+                    xinyi: resDriving.rows[0]?.elements[1]?.status === "OK" ? resDriving.rows[0].elements[1].duration.text : null
+                  },
+                  scooter: {
+                    taipeiMain: resScooter.rows[0]?.elements[0]?.status === "OK" ? resScooter.rows[0].elements[0].duration.text : null,
+                    xinyi: resScooter.rows[0]?.elements[1]?.status === "OK" ? resScooter.rows[0].elements[1].duration.text : null
+                  }
+                };
+              }
+            } catch (err) {
+              console.error("Failed to calculate default hubs commute:", err);
+            }
+          }
+        }
       }
     }
 
@@ -46,60 +144,32 @@ export async function GET(
       listing.images = await Promise.all(listing.images.map(img => getSignedDownloadUrl(img)));
     }
 
-    return successResponse({
-      ...listing,
-      matchResult
-    });
-  });
-}
+    let quota = null;
+    if (session?.user?.id) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
 
-export async function PUT(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  return withErrorHandler(async () => {
-    const session = await auth();
-    const { id } = await params;
+      const used = await db.rateLimit.count({
+        where: {
+          identifier: session.user.id,
+          action: "LISTING_ANALYZE",
+          timestamp: { gte: startOfMonth }
+        }
+      });
 
-    const existing = await db.listing.findUnique({ where: { id } });
-    if (!existing) return errorResponse("Listing not found", 404);
-    if (existing.landlordId !== session?.user?.id) return errorResponse("Unauthorized", 403);
-
-    const body = await req.json();
-    
-    // 只取出允許更新的欄位，過濾掉 landlord, reports, id, createdAt 等唯讀或關聯欄位
-    const { 
-      title, price, address, description, images, features, currency 
-    } = body;
-
-    const data: any = {
-      title, price, address, description, features, currency
-    };
-
-    // 將帶有簽名的網址還原為原始網址，以便與資料庫中的原始路徑比對
-    const normalizeUrl = (url: string) => url.split('?')[0];
-
-    // 自動清理已移除的照片
-    if (existing.images && existing.images.length > 0 && images) {
-      const currentImagesNormalized = images.map(normalizeUrl);
-      const removedImages = existing.images.filter(img => !currentImagesNormalized.includes(normalizeUrl(img)));
-      
-      if (removedImages.length > 0) {
-        await deleteFiles(removedImages);
-      }
-
-      // 儲存進資料庫前，也確保存入的是原始網址（不含簽名）
-      data.images = currentImagesNormalized;
-    } else if (images) {
-      data.images = images.map(normalizeUrl);
+      quota = {
+        used,
+        max: 15
+      };
     }
 
-    const updated = await db.listing.update({
-      where: { id },
-      data,
+    return successResponse({
+      ...listing,
+      matchResult,
+      quota,
+      commuteTime
     });
-
-    return successResponse(updated);
   });
 }
 
@@ -108,19 +178,36 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withErrorHandler(async () => {
+    const { id: listingId } = await params;
     const session = await auth();
-    const { id } = await params;
-
-    const existing = await db.listing.findUnique({ where: { id } });
-    if (!existing) return errorResponse("Listing not found", 404);
-    if (existing.landlordId !== session?.user?.id) return errorResponse("Unauthorized", 403);
-
-    // 刪除資料庫紀錄前，先清理 GCS 中的圖片檔案
-    if (existing.images && existing.images.length > 0) {
-      await deleteFiles(existing.images);
+    if (!session?.user?.id) {
+      return errorResponse("Unauthorized", 401);
     }
 
-    await db.listing.delete({ where: { id } });
-    return successResponse({ deleted: true });
+    const userId = session.user.id;
+
+    // Soft-delete for this user by updating UserListingStatus
+    await db.userListingStatus.upsert({
+      where: {
+        userId_listingId: {
+          userId,
+          listingId
+        }
+      },
+      update: {
+        isSaved: false,
+        isRemoved: true
+      },
+      create: {
+        userId,
+        listingId,
+        isSaved: false,
+        isRemoved: true
+      }
+    });
+
+    return successResponse({ message: "Listing removed from collection successfully" });
   });
 }
+
+

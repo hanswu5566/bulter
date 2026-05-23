@@ -8,7 +8,7 @@ export async function GET(req: Request) {
     const session = await auth();
     if (!session?.user?.id) return errorResponse("Unauthorized", 401);
 
-    const appointments = await db.appointment.findMany({
+    const bookings = await db.booking.findMany({
       where: {
         OR: [
           { tenantId: session.user.id },
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
       orderBy: { scheduledAt: 'desc' }
     });
 
-    return successResponse(appointments);
+    return successResponse(bookings);
   });
 }
 
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     const { listingId, scheduledAt, landlordId } = await req.json();
 
-    const newBooking = await db.appointment.create({
+    const newBooking = await db.booking.create({
       data: {
         tenantId: session.user.id,
         landlordId,

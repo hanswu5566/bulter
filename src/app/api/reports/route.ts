@@ -8,21 +8,21 @@ export async function POST(req: Request) {
     const session = await auth();
     if (!session?.user?.id) return errorResponse("Unauthorized", 401);
 
-    const { appointmentId, checklistData, photos } = await req.json();
+    const { bookingId, checklistData, photos } = await req.json();
 
     // 1. 取得預約與房源資訊
-    const appointment = await db.appointment.findUnique({
-      where: { id: appointmentId },
+    const booking = await db.booking.findUnique({
+      where: { id: bookingId },
       include: { listing: true }
     });
 
-    if (!appointment) return errorResponse("Appointment not found", 404);
+    if (!booking) return errorResponse("Booking not found", 404);
 
     // 2. 建立實勘報告
     const report = await db.inspectionReport.create({
       data: {
-        appointmentId,
-        listingId: appointment.listingId,
+        bookingId,
+        listingId: booking.listingId,
         tenantId: session.user.id,
         checklistData,
         photos,
@@ -31,8 +31,8 @@ export async function POST(req: Request) {
     });
 
     // 3. 更新預約狀態
-    await db.appointment.update({
-      where: { id: appointmentId },
+    await db.booking.update({
+      where: { id: bookingId },
       data: { status: "VISITED" },
     });
 
@@ -40,10 +40,10 @@ export async function POST(req: Request) {
     // 這裡實作簡易邏輯：若房客回報漏水且存證，自動標記房源
     if (checklistData.has_leakage === "warning") {
         await db.listing.update({
-            where: { id: appointment.listingId },
+            where: { id: booking.listingId },
             data: {
                 marketTags: {
-                    ...(appointment.listing.marketTags as object || {}),
+                    ...(booking.listing.marketTags as object || {}),
                     verified_leakage_alert: true
                 }
             }

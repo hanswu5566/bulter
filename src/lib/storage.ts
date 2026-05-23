@@ -1,20 +1,33 @@
 import { Storage } from "@google-cloud/storage";
 import sharp from "sharp";
 
-// 清理環境變數中的引號
+// Clean double quotes from environment keys
 const cleanEnv = (key: string) => (process.env[key] || "").replace(/"/g, "");
 
-const storage = new Storage({
-  projectId: cleanEnv("GCP_PROJECT_ID"),
-  credentials: {
-    client_email: cleanEnv("GCP_CLIENT_EMAIL"),
-    private_key: cleanEnv("GCP_PRIVATE_KEY").replace(/\\n/g, "\n"),
-  },
-});
+const hasGCSCredentials = 
+  cleanEnv("GCP_PROJECT_ID").length > 0 && 
+  cleanEnv("GCP_CLIENT_EMAIL").length > 0 && 
+  cleanEnv("GCP_PRIVATE_KEY").length > 0;
+
+// Dynamic GCS Bypass: Prevent constructor crash if credentials are not configured in .env
+const storage = hasGCSCredentials 
+  ? new Storage({
+      projectId: cleanEnv("GCP_PROJECT_ID"),
+      credentials: {
+        client_email: cleanEnv("GCP_CLIENT_EMAIL"),
+        private_key: cleanEnv("GCP_PRIVATE_KEY").replace(/\\n/g, "\n"),
+      },
+    })
+  : null;
 
 const bucketName = cleanEnv("GCS_BUCKET_NAME") || "ai-house-rent-assets";
 
 export async function getSignedUploadUrl(fileName: string, contentType: string) {
+  if (!storage) {
+    console.log("[GCS Bypass] Signed Upload URLs bypassed. No GCS credentials found.");
+    return { uploadUrl: "", publicUrl: "" };
+  }
+
   const file = storage.bucket(bucketName).file(`uploads/${Date.now()}-${fileName}`);
   
   const [url] = await file.getSignedUrl({
@@ -31,10 +44,13 @@ export async function getSignedUploadUrl(fileName: string, contentType: string) 
 }
 
 export async function getSignedDownloadUrl(url: string) {
+  if (!storage) {
+    return url; // Return the original URL directly (e.g., 591 raw images)
+  }
+
   if (!url || !url.includes(bucketName)) return url;
   
   try {
-    // 從完整網址中提取路徑 (例如 imports/xxx.webp)
     const filePath = url.split(`${bucketName}/`)[1];
     if (!filePath) return url;
 
@@ -42,7 +58,7 @@ export async function getSignedDownloadUrl(url: string) {
     const [signedUrl] = await file.getSignedUrl({
       version: "v4",
       action: "read",
-      expires: Date.now() + 60 * 60 * 1000, // 1 小時有效
+      expires: Date.now() + 60 * 60 * 1000, // 1 hour active
     });
 
     return signedUrl;
@@ -53,8 +69,13 @@ export async function getSignedDownloadUrl(url: string) {
 }
 
 export async function uploadFromUrl(url: string) {
+  if (!storage) {
+    console.log(`[GCS Bypass] Direct image load fallback for URL: ${url}`);
+    return url; // Resilient fallback: Return original URL directly with 0 TWD and 0 GCP cost!
+  }
+
   try {
-    console.log(`Attempting to transfer and optimize image: ${url}`);
+    console.log(`Attempting to transfer and optimize image to GCS: ${url}`);
     
     const response = await fetch(url, {
       headers: {
@@ -68,7 +89,7 @@ export async function uploadFromUrl(url: string) {
     const arrayBuffer = await response.arrayBuffer();
     const originalBuffer = Buffer.from(arrayBuffer);
     
-    // --- 圖片最佳化處理 ---
+    // --- WebP Optimization ---
     const optimizedBuffer = await sharp(originalBuffer)
       .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 90 })
@@ -95,6 +116,8 @@ export async function uploadFromUrl(url: string) {
 }
 
 export async function deleteFiles(urls: string[]) {
+  if (!storage) return;
+
   const prefix = `https://storage.googleapis.com/${bucketName}/`;
   
   for (const url of urls) {

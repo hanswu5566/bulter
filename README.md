@@ -1,6 +1,6 @@
-# AI House Rent - 智慧租屋管家平台
+# Butler. - 智慧租屋
 
-AI House Rent 是一個利用 Gemini AI 驅動的「智慧租屋管家」平台。解決租屋市場中「資訊隱瞞」、「信任成本高」與「看房效率低下」的核心痛點。
+Butler 是一個利用 Gemini AI 驅動的，旨在提供「AI 驅動的智慧租屋體驗」的平台。解決租屋市場中「資訊隱瞞」、「信任成本高」與「看房效率低下」的核心痛點。
 
 ## 核心功能
 
@@ -51,4 +51,5 @@ AI House Rent 是一個利用 Gemini AI 驅動的「智慧租屋管家」平台�
 ---
 
 *Powered by Gemini AI*
-# bulter
+# Butler
+

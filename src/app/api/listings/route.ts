@@ -10,7 +10,31 @@ export async function GET() {
     const session = await auth();
     const userId = session?.user?.id;
     
+    if (!userId) {
+      return errorResponse("Unauthorized. Please login first.", 401);
+    }
+
+    // 1. 查找該用戶已收藏且未隱藏的房源 ID 列表
+    const userStatuses = await db.userListingStatus.findMany({
+      where: {
+        userId: userId,
+        isSaved: true,
+        isRemoved: false
+      },
+      select: {
+        listingId: true
+      }
+    });
+    
+    const savedListingIds = userStatuses.map(s => s.listingId);
+    
+    // 2. 只查詢該用戶所關聯的房源 (Include dynamic inspection report association!)
     const listings = await db.listing.findMany({
+      where: {
+        id: {
+          in: savedListingIds
+        }
+      },
       orderBy: { createdAt: "desc" },
       include: { 
         landlord: { 
@@ -19,17 +43,35 @@ export async function GET() {
             name: true, 
             image: true 
           } 
-        } 
+        },
+        reports: {
+          where: {
+            tenantId: userId
+          },
+          select: {
+            id: true,
+            status: true,
+            createdAt: true
+          },
+          orderBy: {
+            createdAt: "desc"
+          },
+          take: 1
+        }
       }
     });
 
-    const userProfile = (session?.user as any)?.aiTags;
-    
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { aiTags: true }
+    });
+    const userProfile = user?.aiTags;
+
     const processedListings = await Promise.all(
       listings.map(async (l) => {
         const matchResult = userProfile 
-          ? await calculateMatchScore(userProfile, l) 
-          : { score: 70, basicScore: 70, advancedScore: 70, pros: [], cons: [] };
+          ? calculateMatchScore(userProfile, l) 
+          : { score: 75, basicScore: 75, advancedScore: 75, pros: [], cons: [] };
           
         const matchScore = matchResult.score;
           
@@ -40,7 +82,8 @@ export async function GET() {
           ...l, 
           images: signedImages,
           matchScore,
-          isOwner: userId === l.landlordId 
+          isOwner: userId === l.landlordId,
+          latestReport: l.reports && l.reports.length > 0 ? l.reports[0] : null
         };
       })
     );
@@ -49,56 +92,3 @@ export async function GET() {
   });
 }
 
-export async function POST(req: Request) {
-  return withErrorHandler(async () => {
-    const session = await auth();
-    if (!session || (session.user as any)?.role !== "LANDLORD") {
-      return errorResponse("Unauthorized: Landlord role required", 401);
-    }
-
-    const rawData = await req.json();
-
-    // 只有允許的欄位才能存入資料庫
-    const data: any = {
-      title: rawData.title,
-      description: rawData.description,
-      address: rawData.address,
-      price: rawData.price,
-      lat: rawData.lat,
-      lng: rawData.lng,
-      images: rawData.images || [],
-      features: rawData.features,
-      rawScrapedData: rawData.raw591Data,
-      landlordId: session.user.id!,
-    };
-
-    // 如果有圖片，檢查是否需要轉存到 GCS
-    if (data.images && Array.isArray(data.images)) {
-      const bucketName = (process.env.GCS_BUCKET_NAME || "").replace(/"/g, "");
-      const bucketUrlPrefix = `https://storage.googleapis.com/${bucketName}`;
-      
-      // 使用循序處理以確保圖片順序不變 (第一張封面圖必須維持在第一張)
-      const processedImages = [];
-      for (const imgUrl of data.images) {
-        if (typeof imgUrl === "string" && imgUrl.startsWith("http") && !imgUrl.startsWith(bucketUrlPrefix)) {
-          try {
-            const uploadedUrl = await uploadFromUrl(imgUrl);
-            processedImages.push(uploadedUrl);
-          } catch (err) {
-            console.error("Image upload failed, keeping original:", imgUrl, err);
-            processedImages.push(imgUrl);
-          }
-        } else {
-          processedImages.push(imgUrl);
-        }
-      }
-      data.images = processedImages;
-    }
-
-    const newListing = await db.listing.create({
-      data: data,
-    });
-
-    return successResponse(newListing, 201);
-  });
-}

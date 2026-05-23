@@ -2,7 +2,7 @@
 
 @theme {
   --color-primary: #D2691E;
-  --color-surface: #FAFAFA; /* 更清爽的暖白色，取代原本過黃的奶油色 */
+  --color-surface: #FFFFFF; /* 純白色，取代原本過黃的奶油色 */
   --color-on-surface: #1A1A1A; /* 更深的炭灰，提升易讀性 */
   --color-success: #8A9A5B;
   --color-card: #FFFFFF;
@@ -18,7 +18,7 @@
 }
 
 :root {
-  --background: #FAFAFA;
+  --background: #FFFFFF;
   --foreground: #1A1A1A;
   --primary: #D2691E;
 }

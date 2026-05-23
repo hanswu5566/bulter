@@ -7,8 +7,8 @@
   },
   "Navbar": {
     "brand_name": "Butler.",
-    "brand_subtitle": "AI賃貸バトラー",
-    "title": "AI House Rent",
+    "brand_subtitle": "AI駆動のスマート賃貸体験",
+    "title": "Butler.",
     "explore": "探す",
     "import": "インポート",
     "reports": "レポート",
@@ -16,6 +16,7 @@
     "switch_tenant": "借主に切替",
     "login": "ログイン",
     "profile": "設定",
+    "preferences": "生活偏好設定",
     "logout": "ログアウト",
     "my_listings": "マイ物件"
   },
@@ -30,12 +31,12 @@
     "start_discovery_tenant": "居住体験の探索を開始",
     "start_discovery_landlord": "理想の入居者像を定義",
     "browse_listings": "物件を閲覧する",
-    "feature_1_title": "スムーズな移行",
-    "feature_1_desc": "URLを貼り付けるだけで、AIが自動的に物件データを抽出・構造化します。",
-    "feature_2_title": "AI内見ガイド",
-    "feature_2_desc": "執事が内見に同行し、水圧や防音などの隠れた詳細のチェックを案内します。",
-    "feature_3_title": "信頼のマッチング",
-    "feature_3_desc": "データ駆動型のフィードバックループにより、透明性の高い賃貸信頼システムを構築します。",
+    "feature_1_title": "ワンクリック物件解析",
+    "feature_1_desc": "591のURLを貼り付けるだけで、AIが自動的に物件の記述を分析し、管理費や光熱費の隠れたコストを見積もり、地雷キーワードを検知します。",
+    "feature_2_title": "現地内見ガイド",
+    "feature_2_desc": "執事が内見に同行し、水圧や防音などの事実確認を案内します。また、マルチモーダルAIが写真から構造上の欠陥やカビを診断します。",
+    "feature_3_title": "真実の事実共有",
+    "feature_3_desc": "入居希望者が内見後に報告した事実データは自動的にプラットフォームにフィードバックされ、透明性の高い物件状況の台帳を構築します。",
     "initial_interview_msg": "こんにちは！私はあなたのAI執事です。探し始める前に、理想の予算やエリアを教えていただけますか？"
   },
   "AIButler": {

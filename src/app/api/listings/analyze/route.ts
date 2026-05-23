@@ -1,34 +1,37 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { analyzeListingForExtension, diagnoseMatchWithAI, generateInspectionGuideWithAI, genAI } from "@/lib/ai";
+import { analyzeListingForExtension, diagnoseMatchWithAI, generateInspectionGuideWithAI, genAI, getFlatUserTags } from "@/lib/ai";
 import { db } from "@/lib/db";
 import { withErrorHandler, successResponse, errorResponse, withRateLimit } from "@/lib/api-utils";
-import * as cheerio from "cheerio";
-import { detectNearbyThreats, getRealPriceComparison } from "@/lib/maps";
-
-function getFlatUserTags(aiTags: any): string[] {
-  const rawPrefs = aiTags || {};
-  const userTags: string[] = [];
-  if (rawPrefs.budgetMax) userTags.push(`預算 ${rawPrefs.budgetMax} 元以下`);
-  if (rawPrefs.budgetMin) userTags.push(`預算 ${rawPrefs.budgetMin} 元以上`);
-  if (rawPrefs.regions && Array.isArray(rawPrefs.regions)) {
-    rawPrefs.regions.forEach((r: string) => userTags.push(`希望在 ${r}`));
-  }
-  if (rawPrefs.lifestyleTags && Array.isArray(rawPrefs.lifestyleTags)) {
-    rawPrefs.lifestyleTags.forEach((t: string) => userTags.push(t));
-  }
-  return userTags;
-}
+import { scrape591 } from "@/lib/scrapers/taiwan-591";
+import { uploadFromUrl } from "@/lib/storage";
+import { detectNearbyThreats, detectNearbyConveniences, getRealPriceComparison, detectNearbyAccidents, getNearbyGeoCache, geocodeAddress, getCityFallbackCoords } from "@/lib/maps";
+import { checkQuotaOnly, consumeTokens } from "@/lib/quota";
 
 export async function POST(req: Request) {
   const session = await auth();
-  const isAuth = !!session?.user?.id;
-  const limit = isAuth ? 15 : 2;
-  const windowSeconds = isAuth ? 86400 : 3600;
 
-  return withRateLimit(req, "ANALYZE_LISTING", limit, windowSeconds, async () => {
+  // Mandatory authentication to prevent anonymous abuse
+  if (!session?.user?.id) {
+    return errorResponse("Unauthorized. Please login first.", 401);
+  }
+
+  const limit = 5;
+  const windowSeconds = 86400; // 5 requests per 24 hours
+
+  return withRateLimit(req, "ANALYZE_LISTING", limit, windowSeconds, async (session) => {
     return withErrorHandler(async () => {
     const { url } = await req.json();
+
+    if (session?.user?.id) {
+      // Dynamic Unified SaaS Token Quota check!
+      const quota = await checkQuotaOnly(session.user.id, "LISTING_ANALYZE");
+      if (!quota.allowed) {
+        return errorResponse(`您的每日代幣點數不足！一鍵避雷解析需要 ${quota.cost} 點，您今日已使用 ${quota.used} / ${quota.max} 點。`, 403);
+      }
+
+
+    }
 
     if (!url) {
       return errorResponse("Missing URL in request", 400);
@@ -39,13 +42,50 @@ export async function POST(req: Request) {
       where: { sourceUrl: url }
     });
 
-    const session = await auth();
 
     if (existing && (existing.features as any)?.size) {
       console.log("Serving from cache for URL:", url);
       
       let matchResult = null;
       if (session?.user?.id) {
+        // Check if this specific user has already parsed or saved this listing before
+        const alreadyHasStatus = await db.userListingStatus.findUnique({
+          where: {
+            userId_listingId: {
+              userId: session.user.id,
+              listingId: existing.id
+            }
+          }
+        });
+
+        if (!alreadyHasStatus) {
+          // Consumes listing analysis tokens since it is a brand new analysis action for THIS user!
+          await consumeTokens(session.user.id, "LISTING_ANALYZE");
+          console.log(`[Quota Deducted - First Time Cache Hit] Consumed tokens for user: ${session.user.id}`);
+        } else {
+          console.log(`[Quota Free - Repeated Analysis] 0 tokens consumed for user: ${session.user.id}`);
+        }
+
+        // Add/restore to user's active collection
+        await db.userListingStatus.upsert({
+          where: {
+            userId_listingId: {
+              userId: session.user.id,
+              listingId: existing.id
+            }
+          },
+          update: {
+            isSaved: true,
+            isRemoved: false
+          },
+          create: {
+            userId: session.user.id,
+            listingId: existing.id,
+            isSaved: true,
+            isRemoved: false
+          }
+        });
+
         const user = await db.user.findUnique({
           where: { id: session.user.id },
           select: { aiTags: true }
@@ -65,67 +105,120 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. 伺服器端抓取網頁 (Server-side Scraping)
-    console.log("Fetching page content for URL:", url);
-    let htmlContent = "";
+      // 2. 使用自訂 591 解析器抓取網頁並下載優化圖片到 GCS
+      console.log("Scraping page via custom 591 scraper:", url);
+      let scraped;
     try {
-      const fetchRes = await fetch(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-      });
+      scraped = await scrape591(url);
+    } catch (e) {
+      console.error("Scraper failed:", e);
+      return errorResponse("Failed to scrape listing page via custom scraper", 500);
+    }
 
-      if (!fetchRes.ok) {
-        return errorResponse(`Failed to fetch listing page: ${fetchRes.status}`, 500);
+      const cleanContent = scraped.rawContent;
+
+      // 3. 同步將第一張照片 (封面照) 下載優化並上傳到 GCS
+      console.log("Uploading listing cover image to GCS...");
+      const imageUrlsToSave = scraped.images && scraped.images.length > 0
+        ? await Promise.all(scraped.images.slice(0, 1).map(img => uploadFromUrl(img)))
+        : [];
+
+      // 4. 呼叫 Gemini AI 進行自適應分析
+      console.log("Calling Gemini for URL analysis...");
+      const structuredData = await analyzeListingForExtension(cleanContent);
+
+      if (!structuredData) {
+        return errorResponse("AI failed to parse content", 500);
       }
 
-      htmlContent = await fetchRes.text();
-    } catch (e) {
-      console.error("Server fetch failed:", e);
-      return errorResponse("Failed to fetch listing page via server", 500);
-    }
+      console.log("Calling Google Maps API, Accident DB & Real Price DB...");
+      let threatCoords = scraped.lat && scraped.lng
+        ? { lat: scraped.lat, lng: scraped.lng }
+        : null;
 
-    // 3. 清理 HTML 並提取核心數據
-    let cleanContent = "";
-    try {
-      const $ = cheerio.load(htmlContent);
-      // 移除無用標籤
-      $('script').remove();
-      $('style').remove();
-      $('svg').remove();
-
-      // 嘗試抓取 window.__NUXT__
-      let nuxtData = "";
-      $('script').each((_, el) => {
-        const html = $(el).html();
-        if (html && html.includes('window.__NUXT__')) {
-          nuxtData = html.substring(0, 5000);
+      // Tier 2 Dynamic Fail-Safe: Call Google Geocoding API on the AI-extracted full address
+      if (!threatCoords && structuredData.address) {
+        console.log(`[Geocoding Fallback] Scraped GPS is null. Geocoding full address: "${structuredData.address}"...`);
+        threatCoords = await geocodeAddress(structuredData.address);
+        if (threatCoords) {
+          console.log(`[Geocoding Success] Geocoding resolved exact GPS coordinates: ${threatCoords.lat}, ${threatCoords.lng}`);
         }
-      });
-
-      const bodyText = $('body').text().replace(/\s+/g, ' ').trim();
-      cleanContent = `
-        ${nuxtData ? `[核心數據]: ${nuxtData}` : ''}
-        [網頁純文字]: ${bodyText.substring(0, 10000)}
-      `;
-    } catch (e) {
-      console.error("Cheerio processing failed:", e);
-      cleanContent = htmlContent.substring(0, 10000);
     }
 
-    // 4. 呼叫 Gemini AI 進行自適應分析
-    console.log("Calling Gemini for URL analysis...");
-    const structuredData = await analyzeListingForExtension(cleanContent);
+      if (!threatCoords) {
+        const targetAddress = structuredData.address || "";
+        const districtCoords: Record<string, { lat: number; lng: number }> = {
+          "板橋區": { lat: 25.0143, lng: 121.4672 },
+          "中山區": { lat: 25.0685, lng: 121.5333 },
+          "大安區": { lat: 25.0263, lng: 121.5430 },
+          "信義區": { lat: 25.0273, lng: 121.5671 },
+          "三重區": { lat: 25.0726, lng: 121.4894 },
+          "新莊區": { lat: 25.0359, lng: 121.4456 },
+          "中和區": { lat: 24.9985, lng: 121.4989 },
+          "永和區": { lat: 25.0078, lng: 121.5151 },
+          "文山區": { lat: 24.9898, lng: 121.5585 },
+          "士林區": { lat: 25.0922, lng: 121.5245 },
+          "北投區": { lat: 25.1321, lng: 121.4987 },
+          "內湖區": { lat: 25.0689, lng: 121.5909 },
+          "南港區": { lat: 25.0558, lng: 121.6072 },
+          "松山區": { lat: 25.0598, lng: 121.5572 },
+          "萬華區": { lat: 25.0354, lng: 121.4997 },
+          "汐止區": { lat: 25.0646, lng: 121.6513 },
+          "淡水區": { lat: 25.1693, lng: 121.4446 },
+          "蘆洲區": { lat: 25.0828, lng: 121.4753 },
+          "土城區": { lat: 24.9732, lng: 121.4489 },
+          "新店區": { lat: 24.9781, lng: 121.5405 },
+          "林口區": { lat: 25.0775, lng: 121.3914 },
+          "鶯歌區": { lat: 24.9558, lng: 121.3472 },
+          "八里區": { lat: 25.1461, lng: 121.3959 },
+          "瑞芳區": { lat: 25.1075, lng: 121.8233 },
+          "三峽區": { lat: 24.9249, lng: 121.3675 },
+          "五股區": { lat: 25.0673, lng: 121.4341 },
+          "泰山區": { lat: 25.0624, lng: 121.4335 },
+          "深坑區": { lat: 25.0027, lng: 121.6263 },
+          "石門區": { lat: 25.2914, lng: 121.5657 },
+          "金山區": { lat: 25.2218, lng: 121.6395 },
+          "萬里區": { lat: 25.1776, lng: 121.6894 },
+          "三芝區": { lat: 25.2585, lng: 121.5011 }
+        };
 
-    if (!structuredData) {
-      return errorResponse("AI failed to parse content", 500);
+        for (const [dist, coord] of Object.entries(districtCoords)) {
+          if (targetAddress.includes(dist)) {
+            console.log(`[Fail-Safe Route] GPS coordinates missing, fallback to AI district center for: ${dist}`);
+            threatCoords = coord;
+            break;
+        }
+        }
+      }
+
+      // Tier 4 City-level Backup Fallback: cover Taichung, Tainan, Hualien etc. perfectly!
+      if (!threatCoords && structuredData.address) {
+        const cityCoord = getCityFallbackCoords(structuredData.address);
+        if (cityCoord) {
+          console.log(`[City Fallback Route] GPS coordinates missing, fallback to City center for address: "${structuredData.address}"`);
+          threatCoords = cityCoord;
+        }
     }
 
-    // 4.5 呼叫 Google Maps API 與實價登錄 (真實嫁接)
-    console.log("Calling Google Maps API & Real Price DB...");
-    // 這裡我們暫時寫死峨眉街的座標進行測試，真實環境應從 591 的 NuxtData 中用 Regex 提取 lat/lng
-    const mapsThreats = await detectNearbyThreats({ lat: 25.0421, lng: 121.5069 });
-    const priceComp = await getRealPriceComparison(structuredData.address || "峨眉街", structuredData.features?.type || "整層住家");
+      if (!threatCoords) {
+        threatCoords = { lat: 25.0421, lng: 121.5069 };
+      }
+
+      // O(1) Geospatial Sharing Cache: Share cached Google Places results if a neighbor listing (within 150m) exists
+      const geoCache = await getNearbyGeoCache(threatCoords);
+      let mapsThreats = null;
+      let mapsConveniences = null;
+
+      if (geoCache) {
+        mapsThreats = geoCache.mapsThreats;
+        mapsConveniences = geoCache.mapsConveniences;
+      } else {
+        mapsThreats = await detectNearbyThreats(threatCoords);
+        mapsConveniences = await detectNearbyConveniences(threatCoords);
+    }
+
+      const trafficAccidents = await detectNearbyAccidents(threatCoords);
+    const priceComp = await getRealPriceComparison(structuredData.address || "峨眉街", structuredData.features?.type || "整層住家", structuredData.features?.size, structuredData.features?.elevator);
 
     // 4.7 Pre-generate the Double-Track AI Inspection Guide
     console.log("Pre-generating AI inspection guide...");
@@ -137,7 +230,9 @@ export async function POST(req: Request) {
         description: structuredData.description || "",
         butlerInsight: {
           risks: structuredData.risks,
-          mapsThreats: mapsThreats
+          mapsThreats: mapsThreats,
+          mapsConveniences: mapsConveniences,
+          trafficAccidents: trafficAccidents
         }
       };
       const guideResult = await generateInspectionGuideWithAI(tempListing);
@@ -151,11 +246,13 @@ export async function POST(req: Request) {
     // 将真实数据合并入 butlerInsight
     if (structuredData.butlerInsight) {
       structuredData.butlerInsight.mapsThreats = mapsThreats;
+      structuredData.butlerInsight.mapsConveniences = mapsConveniences;
+      structuredData.butlerInsight.trafficAccidents = trafficAccidents;
       structuredData.butlerInsight.priceComparison = priceComp;
       structuredData.butlerInsight.inspectionGuide = inspectionGuide;
     }
 
-    // 5. 存入資料庫作為快取 (Cache)
+      // 5. 存入資料庫作為快取 (Cache) 並儲存真實照片與經緯度
     console.log("Saving analyzed listing to DB...");
     let newListing = null;
     try {
@@ -167,12 +264,18 @@ export async function POST(req: Request) {
           address: structuredData.address || "未知地址",
           description: structuredData.description || "",
           features: structuredData.features,
+          images: imageUrlsToSave,
+          lat: threatCoords.lat,
+          lng: threatCoords.lng,
           butlerInsight: {
             verdict: structuredData.verdict,
             risks: structuredData.risks,
             estimatedTotalCost: structuredData.estimatedTotalCost,
             highlightLines: structuredData.highlightLines,
+            tagEvaluation: structuredData.tagEvaluation,
             mapsThreats: mapsThreats,
+            mapsConveniences: mapsConveniences,
+            trafficAccidents: trafficAccidents,
             priceComparison: priceComp,
             inspectionGuide: inspectionGuide
           }
@@ -184,12 +287,18 @@ export async function POST(req: Request) {
           description: structuredData.description || "",
           sourceUrl: url,
           features: structuredData.features,
+          images: imageUrlsToSave,
+          lat: threatCoords.lat,
+          lng: threatCoords.lng,
           butlerInsight: {
             verdict: structuredData.verdict,
             risks: structuredData.risks,
             estimatedTotalCost: structuredData.estimatedTotalCost,
             highlightLines: structuredData.highlightLines,
+            tagEvaluation: structuredData.tagEvaluation,
             mapsThreats: mapsThreats,
+            mapsConveniences: mapsConveniences,
+            trafficAccidents: trafficAccidents,
             priceComparison: priceComp,
             inspectionGuide: inspectionGuide
           },
@@ -201,6 +310,12 @@ export async function POST(req: Request) {
           }
         }
       });
+
+      if (newListing) {
+        // Log token consumption for listing analysis!
+        await consumeTokens(session.user.id, "LISTING_ANALYZE");
+        console.log(`[Quota Deducted] Consumed tokens for user: ${session.user.id}`);
+      }
     } catch (dbError) {
       console.error("Failed to save or update DB:", dbError);
     }
@@ -230,6 +345,43 @@ export async function POST(req: Request) {
 
     let aiMatchResult = null;
     if (session?.user?.id && newListing) {
+      // Ensure the User record exists in the database (Robust fail-safe for db resets!)
+      const userExists = await db.user.findUnique({
+        where: { id: session.user.id }
+      });
+      
+      if (!userExists) {
+        console.log(`[User Restored] User record missing from DB. Re-creating User: ${session.user.id}`);
+        await db.user.create({
+          data: {
+            id: session.user.id,
+            name: session.user.name || "匿名用戶",
+            email: session.user.email || `user-${session.user.id}@butler.io`,
+            role: "TENANT"
+          }
+        });
+      }
+
+      // Add to user's active collection
+      await db.userListingStatus.upsert({
+        where: {
+          userId_listingId: {
+            userId: session.user.id,
+            listingId: newListing.id
+          }
+        },
+        update: {
+          isSaved: true,
+          isRemoved: false
+        },
+        create: {
+          userId: session.user.id,
+          listingId: newListing.id,
+          isSaved: true,
+          isRemoved: false
+        }
+      });
+
       const user = await db.user.findUnique({
         where: { id: session.user.id },
         select: { aiTags: true }

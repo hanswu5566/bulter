@@ -117,7 +117,7 @@ export default function ReportsList() {
               href="/"
               className="inline-flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
             >
-              去透視房源
+              去解析房源
             </Link>
           </div>
         )}

@@ -201,11 +201,13 @@ export async function scrape591(url: string) {
       }
     });
 
-    // 4. 提取經緯度 (591 常用 lat/lng 或 google map 連結)
+    // 4. 提取經緯度 (591 常用 lat/lng 或 google map 連結，支援各類引號與空格)
     let lat = null;
     let lng = null;
-    const latMatch = html.match(/"lat":\s*"?([0-9.]+)"?/);
-    const lngMatch = html.match(/"lng":\s*"?([0-9.]+)"?/);
+    
+    const latMatch = html.match(/["']?lat["']?\s*:\s*"?([0-9.]+)"?/i);
+    const lngMatch = html.match(/["']?lng["']?\s*:\s*"?([0-9.]+)"?/i);
+    
     if (latMatch && lngMatch) {
       lat = parseFloat(latMatch[1]);
       lng = parseFloat(lngMatch[1]);
@@ -218,10 +220,48 @@ export async function scrape591(url: string) {
        }
     }
 
+    // ⚖️ 企業級 Fail-Safe：行政區座標兜底 (防範網頁結構異動或經緯度缺失)
+    if (!lat || !lng) {
+      const targetAddress = ruleData.address || title || "";
+      const districtCoords: Record<string, { lat: number; lng: number }> = {
+        "板橋區": { lat: 25.0143, lng: 121.4672 },
+        "中山區": { lat: 25.0685, lng: 121.5333 },
+        "大安區": { lat: 25.0263, lng: 121.5430 },
+        "信義區": { lat: 25.0273, lng: 121.5671 },
+        "三重區": { lat: 25.0726, lng: 121.4894 },
+        "新莊區": { lat: 25.0359, lng: 121.4456 },
+        "中和區": { lat: 24.9985, lng: 121.4989 },
+        "永和區": { lat: 25.0078, lng: 121.5151 },
+        "文山區": { lat: 24.9898, lng: 121.5585 },
+        "士林區": { lat: 25.0922, lng: 121.5245 },
+        "北投區": { lat: 25.1321, lng: 121.4987 },
+        "內湖區": { lat: 25.0689, lng: 121.5909 },
+        "南港區": { lat: 25.0558, lng: 121.6072 },
+        "松山區": { lat: 25.0598, lng: 121.5572 },
+        "萬華區": { lat: 25.0354, lng: 121.4997 },
+        "汐止區": { lat: 25.0646, lng: 121.6513 },
+        "淡水區": { lat: 25.1693, lng: 121.4446 },
+        "蘆洲區": { lat: 25.0828, lng: 121.4753 },
+        "土城區": { lat: 24.9732, lng: 121.4489 },
+        "新店區": { lat: 24.9781, lng: 121.5405 },
+        "林口區": { lat: 25.0775, lng: 121.3914 }
+      };
+
+      for (const [dist, coord] of Object.entries(districtCoords)) {
+        if (targetAddress.includes(dist)) {
+          console.log(`[Fail-Safe Active] Coordinates missing, matched district center for: ${dist}`);
+          lat = coord.lat;
+          lng = coord.lng;
+          break;
+        }
+      }
+    }
+
     // 格式化回傳，對齊 AI Prompt 的標籤
     const combinedContent = `
       MAIN_IMAGE: ${ogImage || "None"}
       COORDINATES: ${lat}, ${lng}
+      AMENITIES_PROVIDED: ${ruleData.amenities.join(", ")}
       PROPERTY_PHOTOS:
       ${uniqueImages.join("\n")}
       

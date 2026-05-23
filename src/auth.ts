@@ -31,11 +31,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.aiTags = (user as any).aiTags;
       }
-      // 處理角色切換觸發 (trigger === "update")
-      if (trigger === "update") {
-        if (session?.user?.role) token.role = session.user.role;
-        else if (session?.role) token.role = session.role;
-        if (session?.user?.aiTags) token.aiTags = session.user.aiTags;
+      // Real-time Database Session Synchronizer (hides lag!)
+      if (trigger === "update" && token.id) {
+        const latestUser = await db.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true, aiTags: true }
+        });
+        if (latestUser) {
+          token.role = latestUser.role;
+          token.aiTags = latestUser.aiTags;
+          console.log(`[NextAuth Session Sync] Successfully synchronized latest user ${token.id} aiTags from DB!`);
+        }
       }
       return token;
     },
