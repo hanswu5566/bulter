@@ -168,7 +168,7 @@ export default function LandingPage() {
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="貼上任何 591 或租屋網址，讓 Butler 為您解析真相..."
+                placeholder="貼上台灣 591 房源網址，讓 Butler 為您解析真相..."
                 className="w-full px-6 py-5 rounded-2xl text-on-surface focus:outline-none text-lg"
               />
               <button

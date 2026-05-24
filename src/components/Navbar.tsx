@@ -81,11 +81,24 @@ export default function Navbar() {
             {session && (
               <div className="hidden md:flex items-center bg-gray-50 p-1.5 rounded-2xl border border-gray-100 gap-1">
                   {quota && (
-                    <div 
-                      className="flex items-center gap-1 px-3 py-2 rounded-xl text-[10px] font-black text-primary bg-primary/10 border border-primary/10 select-none mr-1"
-                      title="本月剩餘 AI 房源解析額度"
-                    >
-                      <span>⚡ AI 額度: {Math.max(0, quota.max - quota.used)} / {quota.max}</span>
+                    <div className="relative group mr-1">
+                      <div 
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black text-primary bg-primary/10 border border-primary/10 select-none cursor-help transition-all hover:bg-primary/15"
+                      >
+                        <span>⚡ AI 額度: {Math.max(0, quota.max - quota.used)} / {quota.max}</span>
+                        <span className="w-3.5 h-3.5 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-black text-primary">?</span>
+                      </div>
+                      
+                      {/* Premium Hover Tooltip */}
+                      <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 bg-white/95 backdrop-blur-md border border-gray-100 p-4 rounded-2xl shadow-2xl w-56 text-left pointer-events-none opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 z-50 select-none">
+                        <div className="text-[10px] font-black text-[#333333] mb-1.5 flex items-center gap-1">
+                          <span>🔋 額度重置說明</span>
+                        </div>
+                        <p className="text-[9px] text-gray-500 font-bold leading-relaxed">
+                          每日額度上限為 150 點。<br />
+                          於 **台灣時間凌晨 00:00** 自動重新充滿。解析新房源扣 20 點，生成租約扣 30 點。
+                        </p>
+                      </div>
                     </div>
                   )}
                   <Link 
@@ -147,8 +160,16 @@ export default function Navbar() {
                                 Elite Tenant
                               </div>
                               {quota && (
-                                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#D2691E]/15 text-[#D2691E] text-[9px] font-black rounded-full tracking-tighter select-none">
-                                  ⚡ 額度: {Math.max(0, quota.max - quota.used)} / {quota.max}
+                                <div className="relative group">
+                                  <div className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#D2691E]/15 text-[#D2691E] text-[9px] font-black rounded-full tracking-tighter select-none cursor-help">
+                                    ⚡ 額度: {Math.max(0, quota.max - quota.used)} / {quota.max} ?
+                                  </div>
+                                  {/* Mobile Tooltip */}
+                                  <div className="absolute top-full mt-1.5 right-0 bg-white border border-gray-100 p-3 rounded-xl shadow-xl w-48 text-left pointer-events-none opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 z-50 select-none">
+                                    <p className="text-[8px] text-gray-500 font-bold leading-normal">
+                                      每日額度 150 點，於 **台灣時間凌晨 00:00** 自動重置充滿！
+                                    </p>
+                                  </div>
                                 </div>
                               )}
                             </div>
