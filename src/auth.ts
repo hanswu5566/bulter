@@ -12,8 +12,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      // Change 'confirm' to 'select_account' to fix the 400 error
-      authorization: { params: { prompt: "select_account", access_type: "offline", response_type: "code" } }
+      authorization: { params: { prompt: "select_account", access_type: "offline", response_type: "code" } },
+      checks: ["pkce", "state"], // Bypass NextAuth v5 strict OpenID issuer missing validation bug!
     }),
   ],
   callbacks: {
