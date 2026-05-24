@@ -140,7 +140,7 @@ export default function ListingsPage() {
             
             {/* 快速匯入輸入框 */}
             {listings.length > 0 && (
-              <div className="w-full max-w-md bg-white p-1.5 rounded-2xl shadow-md border border-gray-100 flex items-center gap-2 mt-6 focus-within:border-[#D2691E] focus-within:ring-2 focus-within:ring-[#D2691E]/10 transition-all">
+              <div className="w-full max-w-md bg-white p-2 rounded-2xl shadow-md border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-2 mt-6 focus-within:border-[#D2691E] focus-within:ring-2 focus-within:ring-[#D2691E]/10 transition-all">
                 <input
                   type="text"
                   value={newUrl}
@@ -151,7 +151,7 @@ export default function ListingsPage() {
                 <button
                   onClick={handleQuickImport}
                   disabled={importing}
-                  className="bg-[#D2691E] text-white px-5 py-2.5 rounded-xl text-xs font-black shadow-sm hover:bg-[#b25915] disabled:bg-gray-300 transition-all flex items-center gap-1 cursor-pointer shrink-0"
+                  className="w-full sm:w-auto bg-[#D2691E] text-white px-5 py-2.5 rounded-xl text-xs font-black shadow-sm hover:bg-[#b25915] disabled:bg-gray-300 transition-all flex items-center justify-center gap-1 cursor-pointer shrink-0 select-none"
                 >
                   {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlusCircle className="w-3.5 h-3.5" />}
                   {importing ? "處理中" : "快速匯入"}

@@ -37,6 +37,11 @@ export async function POST(req: Request) {
       return errorResponse("Missing URL in request", 400);
     }
 
+    const regex = /^(https?:\/\/)?(rent|m)\.591\.com\.tw\/(rent-detail-)?([0-9]+)/i;
+    if (!regex.test(url.trim())) {
+      return errorResponse("⚠️ 格式不正確！只允許貼上正確的台灣 591 房源網址（例如：https://rent.591.com.tw/21210742）", 400);
+    }
+
     // 1. 優先檢查資料庫是否已經有這個網址的解析紀錄 (Cache) - 暫時註解以強制重新分析
     const existing = await db.listing.findUnique({
       where: { sourceUrl: url }

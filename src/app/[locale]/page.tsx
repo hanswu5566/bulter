@@ -83,9 +83,19 @@ export default function LandingPage() {
     }
   };
 
+  const isValid591Url = (inputUrl: string) => {
+    const regex = /^(https?:\/\/)?(rent|m)\.591\.com\.tw\/(rent-detail-)?([0-9]+)/i;
+    return regex.test(inputUrl.trim());
+  };
+
   const handleAnalyze = async () => {
     if (!url || url.trim() === "") {
       alert("請先貼上要解析的 591 房源網址！");
+      return;
+    }
+
+    if (!isValid591Url(url)) {
+      alert("⚠️ 網址格式不正確！請貼上正確的台灣 591 房源網址（例如：https://rent.591.com.tw/21210742）");
       return;
     }
 
@@ -163,18 +173,18 @@ export default function LandingPage() {
                 </div>
               </motion.div>
             )}
-            <div className="relative flex items-center bg-white rounded-2xl border-2 border-primary/20 focus-within:border-primary shadow-sm hover:shadow-md transition-all">
+            <div className="relative flex flex-col sm:flex-row sm:items-center bg-white rounded-2xl border-2 border-primary/20 focus-within:border-primary shadow-sm hover:shadow-md transition-all p-2 sm:p-0">
               <input
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="貼上台灣 591 房源網址，讓 Butler 為您解析真相..."
-                className="w-full px-6 py-5 rounded-2xl text-on-surface focus:outline-none text-lg"
+                className="w-full px-6 py-5 rounded-2xl text-on-surface focus:outline-none text-base sm:text-lg"
               />
               <button
                 onClick={handleAnalyze}
                 disabled={loading}
-                className="absolute right-2 bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-primary/90 disabled:bg-gray-300 transition-colors"
+                className="w-full sm:w-auto sm:absolute sm:right-2 bg-primary text-white px-8 py-4 sm:py-3 rounded-xl font-bold hover:bg-primary/90 disabled:bg-gray-300 transition-colors mt-2 sm:mt-0 cursor-pointer select-none"
               >
                 {loading ? "分析中..." : "一鍵解析"}
               </button>
