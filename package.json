@@ -6,7 +6,11 @@
     "dev": "next dev -p 7788",
     "build": "prisma generate && next build",
     "start": "next start -p 7788",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "embeddings:backfill": "bun run scripts/backfill-embeddings.ts",
+    "eval:golden-set": "bun run scripts/eval/generate-golden-set.ts",
+    "eval:retrieval": "bun run scripts/eval-retrieval.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

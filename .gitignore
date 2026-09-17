@@ -48,3 +48,6 @@ docs/591_01
 *.pdf
 /rent.pdf
 /rent2.pdf
+
+# Regenerable cache for the retrieval evaluation harness
+/scripts/eval/.embedding-cache.json

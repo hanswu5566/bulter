@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { analyzeListingForExtension, diagnoseMatchWithAI, generateInspectionGuideWithAI, genAI, getFlatUserTags } from "@/lib/ai";
+import { analyzeListingForExtension, diagnoseMatchWithAI, generateInspectionGuideWithAI, getFlatUserTags } from "@/lib/ai";
+import { embedListing } from "@/lib/ai/embeddings";
 import { db } from "@/lib/db";
 import { withErrorHandler, successResponse, errorResponse, withRateLimit } from "@/lib/api-utils";
 import { scrape591 } from "@/lib/scrapers/taiwan-591";
@@ -326,23 +327,22 @@ export async function POST(req: Request) {
     }
 
     // 6. 生成 Vector Embedding 並存入資料庫
-    if (newListing && structuredData.address && structuredData.features?.size) {
+    if (newListing) {
       console.log("Generating Vector Embedding...");
       try {
-        const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
-        const specText = `地址: ${structuredData.address}。坪數: ${structuredData.features.size}。樓層: ${structuredData.features.floor || ''}`;
-        
-        const embedResult = await embedModel.embedContent({
-          content: {
-            parts: [{ text: specText }]
-          },
-          outputDimensionality: 768
-        } as any);
-        const vector = embedResult.embedding.values;
-        
-        const vectorStr = `[${vector.join(",")}]`;
-        await db.$executeRaw`UPDATE "Listing" SET "embedding" = ${vectorStr}::vector WHERE "id" = ${newListing.id}`;
-        console.log("Successfully saved vector embedding.");
+        const embedded = await embedListing(newListing.id, {
+          title: structuredData.title,
+          address: structuredData.address,
+          description: structuredData.description,
+          price: structuredData.price,
+          features: structuredData.features,
+          butlerInsight: newListing.butlerInsight,
+        });
+        console.log(
+          embedded
+            ? "Successfully saved vector embedding."
+            : "Skipped embedding: listing carries no indexable text."
+        );
       } catch (embedError) {
         console.error("Failed to generate or save embedding:", embedError);
       }
